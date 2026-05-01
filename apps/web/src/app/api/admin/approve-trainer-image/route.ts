@@ -44,15 +44,22 @@ export async function POST(req: NextRequest) {
         const pendingImageUrl = profile?.profile_image_url || null;
 
         if (action === "approve") {
-            const { error } = await adminSupabase
+            const { data: updatedRows, error } = await adminSupabase
                 .from("trainer_profiles")
                 .update({
                     profile_image_status: "approved",
                     profile_image_rejection_reason: null,
                 })
-                .eq("user_id", trainerId);
+                .eq("user_id", trainerId)
+                .select("user_id, profile_image_status");
 
             if (error) throw error;
+            if (!updatedRows || updatedRows.length === 0) {
+                return NextResponse.json(
+                    { error: "Trainer profile not found — cannot approve image." },
+                    { status: 404 }
+                );
+            }
 
             // Sync approved image to users.avatar_url so it shows on trainer detail,
             // search cards, nav bar, etc. (which all read avatar_url).
@@ -64,15 +71,22 @@ export async function POST(req: NextRequest) {
                 if (avatarError) console.error("[admin/approve-trainer-image] avatar sync failed:", avatarError);
             }
         } else {
-            const { error } = await adminSupabase
+            const { data: updatedRows, error } = await adminSupabase
                 .from("trainer_profiles")
                 .update({
                     profile_image_status: "rejected",
                     profile_image_rejection_reason: reason || null,
                 })
-                .eq("user_id", trainerId);
+                .eq("user_id", trainerId)
+                .select("user_id, profile_image_status");
 
             if (error) throw error;
+            if (!updatedRows || updatedRows.length === 0) {
+                return NextResponse.json(
+                    { error: "Trainer profile not found — cannot reject image." },
+                    { status: 404 }
+                );
+            }
 
             // Rejected image must not continue to display publicly — clear avatar_url
             // if it was previously set to this rejected image.
@@ -86,7 +100,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        return NextResponse.json({ success: true });
+        const newStatus = action === "approve" ? "approved" : "rejected";
+        return NextResponse.json({
+            success: true,
+            trainerId,
+            profile_image_status: newStatus,
+            profile_image_rejection_reason: action === "reject" ? (reason || null) : null,
+        });
     } catch (err: any) {
         console.error("[admin/approve-trainer-image]", err);
         return NextResponse.json({ error: err.message }, { status: 500 });

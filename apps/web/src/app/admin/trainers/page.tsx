@@ -170,6 +170,25 @@ export default function AdminTrainersPage() {
         });
     };
 
+    // Verification docs are uploaded to Cloudinary as `type=authenticated`, so
+    // the raw URL returns 401. Fetch a server-signed delivery URL before opening.
+    const openSignedDoc = async (docUrl: string) => {
+        try {
+            const res = await adminFetch("/api/admin/cloudinary-signed-url", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: docUrl }),
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || "Failed to sign URL");
+            window.open(json.signedUrl, "_blank", "noopener,noreferrer");
+        } catch (err: any) {
+            console.error("[openSignedDoc]", err);
+            // Fall back to the raw URL — better than nothing if config is missing.
+            window.open(docUrl, "_blank", "noopener,noreferrer");
+        }
+    };
+
     const openImageModal = (t: any) => {
         setImageModal({
             isOpen: true,
@@ -199,6 +218,16 @@ export default function AdminTrainersPage() {
             const json = await res.json();
             if (!res.ok) throw new Error(json.error);
 
+            // Optimistic local-state update so the badge reflects the new status
+            // immediately, regardless of any race in the refetch below.
+            const newStatus: "approved" | "rejected" = action === "approve" ? "approved" : "rejected";
+            const newReason = action === "reject" ? (rejectReasonInput || null) : null;
+            setTrainers(prev => prev.map(t =>
+                t.id === imageModal.trainerId
+                    ? { ...t, profileImageStatus: newStatus, profileImageRejectionReason: newReason }
+                    : t
+            ));
+
             await loadTrainers();
             setImageModal(prev => ({
                 ...prev,
@@ -217,56 +246,22 @@ export default function AdminTrainersPage() {
     const handleDocsStatusUpdate = async (newStatus: "verified" | "rejected") => {
         if (!docsModal.trainerId) return;
 
-        // Block verify when profile is incomplete
-        if (newStatus === "verified") {
-            const { data: user } = await supabase
-                .from("users")
-                .select("first_name, last_name, phone, date_of_birth, avatar_url")
-                .eq("id", docsModal.trainerId)
-                .maybeSingle();
-            const { data: profile } = await supabase
-                .from("trainer_profiles")
-                .select("bio, sports, city, years_experience, session_pricing, training_locations")
-                .eq("user_id", docsModal.trainerId)
-                .maybeSingle();
-            const completeness = computeTrainerCompleteness(user, profile);
-            if (!completeness.complete) {
-                alert(`Profile incomplete: ${completeness.missing.join(", ")}`);
-                return;
-            }
-        }
-
         setDocsActionLoading(true);
         try {
-            const { error: profErr } = await supabase
-                .from("trainer_profiles")
-                .update({ verification_status: newStatus, is_verified: newStatus === "verified" })
-                .eq("user_id", docsModal.trainerId);
-            if (profErr) throw profErr;
-            // Keep users.is_approved aligned with verification state
-            const { error: userErr } = await supabase
-                .from("users")
-                .update({ is_approved: newStatus === "verified" })
-                .eq("id", docsModal.trainerId);
-            if (userErr) console.error("users.is_approved update failed:", userErr);
-
-            const notification = newStatus === "verified"
-                ? {
-                    user_id: docsModal.trainerId,
-                    type: "PROFILE_VERIFIED",
-                    title: "Profile Approved!",
-                    body: "Congratulations! Your trainer profile has been verified. Athletes can now find and book you.",
-                    read: false,
+            const res = await adminFetch("/api/admin/approve-trainer-verification", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ trainerUserId: docsModal.trainerId, status: newStatus }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (res.status === 400 && Array.isArray(json?.missing)) {
+                    alert(`Cannot approve — profile incomplete. Missing: ${json.missing.join(", ")}`);
+                } else {
+                    alert(json?.error || "Failed to update verification status");
                 }
-                : {
-                    user_id: docsModal.trainerId,
-                    type: "PROFILE_REJECTED",
-                    title: "Verification Update",
-                    body: "Your profile verification needs attention. Please review your documents and resubmit.",
-                    read: false,
-                };
-            const { error: notifErr } = await supabase.from("notifications").insert(notification);
-            if (notifErr) console.error("notification insert failed:", notifErr);
+                return;
+            }
 
             setTrainers(prev => prev.map(t => {
                 if (t.id === docsModal.trainerId) {
@@ -317,39 +312,23 @@ export default function AdminTrainersPage() {
         const { id, newStatus } = confirmModal;
         if (!id || !newStatus) return;
 
-        // Block verify when profile is incomplete — fetch fresh user + profile and re-check
-        if (newStatus === "verified") {
-            const { data: user } = await supabase
-                .from("users")
-                .select("first_name, last_name, phone, date_of_birth, avatar_url")
-                .eq("id", id)
-                .maybeSingle();
-            const { data: profile } = await supabase
-                .from("trainer_profiles")
-                .select("bio, sports, city, years_experience, session_pricing, training_locations")
-                .eq("user_id", id)
-                .maybeSingle();
-            const completeness = computeTrainerCompleteness(user, profile);
-            if (!completeness.complete) {
-                setConfirmModal({ isOpen: false, id: null, newStatus: null, name: "" });
-                alert(`Profile incomplete: ${completeness.missing.join(", ")}`);
-                return;
-            }
-        }
-
         setActionLoading(true);
         try {
-            // Keep verification_status and is_verified in sync — search/discovery uses is_verified
-            const { error } = await supabase.from("trainer_profiles").update({
-                verification_status: newStatus,
-                is_verified: newStatus === "verified",
-            }).eq("user_id", id);
-            if (error) throw error;
-            // Also flip users.is_approved so other branches (search, dashboards) stay consistent
-            const { error: userErr } = await supabase.from("users").update({
-                is_approved: newStatus === "verified",
-            }).eq("id", id);
-            if (userErr) console.error("users.is_approved update failed:", userErr);
+            const res = await adminFetch("/api/admin/approve-trainer-verification", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ trainerUserId: id, status: newStatus }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setConfirmModal({ isOpen: false, id: null, newStatus: null, name: "" });
+                if (res.status === 400 && Array.isArray(json?.missing)) {
+                    alert(`Cannot approve — profile incomplete. Missing: ${json.missing.join(", ")}`);
+                } else {
+                    alert(json?.error || "Failed to update verification status");
+                }
+                return;
+            }
             setTrainers(prev => prev.map(t => {
                 if (t.id === id) {
                     const isVerified = newStatus === "verified";
@@ -1087,14 +1066,12 @@ export default function AdminTrainersPage() {
                                             </div>
                                             <span className="text-text-main/70 text-xs font-medium">Document {idx + 1}.pdf</span>
                                         </div>
-                                        <a
-                                            href={docUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <button
+                                            onClick={() => openSignedDoc(docUrl)}
                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-primary text-[10px] font-black uppercase tracking-wider hover:bg-white/10 transition-all"
                                         >
                                             <ExternalLink size={11} /> Open PDF
-                                        </a>
+                                        </button>
                                     </div>
                                 ))
                             )}
