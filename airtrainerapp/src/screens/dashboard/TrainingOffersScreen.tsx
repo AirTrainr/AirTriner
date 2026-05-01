@@ -34,7 +34,7 @@ import SectionHeader from '../../components/ui/SectionHeader';
 import TabFilter from '../../components/ui/TabFilter';
 import Input from '../../components/ui/Input';
 import Divider from '../../components/ui/Divider';
-import { radiusUnit } from '../../lib/units';
+import { radiusUnit, detectCountry } from '../../lib/units';
 
 // ---- Types ----
 
@@ -260,7 +260,9 @@ export default function TrainingOffersScreen({ navigation }: any) {
 
     // Trainer location for radius search + unit detection
     const trainerCountry: 'US' | 'CA' | 'OTHER' = (trainerProfile?.country === 'CA' ? 'CA' : trainerProfile?.country === 'US' ? 'US' : 'OTHER');
-    const unit = radiusUnit(trainerCountry);
+    const typedCountry: 'US' | 'CA' | 'OTHER' = locationFilter.trim() ? detectCountry(locationFilter.trim()) : 'OTHER';
+    const effectiveCountry: 'US' | 'CA' | 'OTHER' = typedCountry !== 'OTHER' ? typedCountry : trainerCountry;
+    const unit = radiusUnit(effectiveCountry);
     const trainerLat = trainerProfile?.latitude ?? null;
     const trainerLng = trainerProfile?.longitude ?? null;
     const hasTrainerCoords = trainerLat !== null && trainerLng !== null;

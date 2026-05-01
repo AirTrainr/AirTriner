@@ -420,10 +420,15 @@ export default function TrainingOffersPage() {
         }
     };
 
-    // Trainer's location (used as radius search center) + unit detection
+    // Trainer's location (used as radius search center) + unit detection.
+    // If the typed location filter contains a CA/US postal pattern, that
+    // overrides the trainer's profile country (e.g. searching a Canadian
+    // town from a US trainer should flip the unit to km).
     const trainerZip = user?.trainerProfile?.zip_code || "";
     const trainerCountry = trainerZip ? detectCountry(trainerZip) : ("US" as const);
-    const unit = radiusUnit(trainerCountry);
+    const typedCountry = locationFilter.trim() ? detectCountry(locationFilter.trim()) : "OTHER";
+    const effectiveCountry = typedCountry !== "OTHER" ? typedCountry : trainerCountry;
+    const unit = radiusUnit(effectiveCountry);
     const trainerLat = user?.trainerProfile?.latitude ?? null;
     const trainerLng = user?.trainerProfile?.longitude ?? null;
     const hasTrainerCoords = trainerLat !== null && trainerLng !== null;

@@ -205,7 +205,15 @@ export default function SearchTrainersPage() {
     // Country detection for radius unit display
     const athleteZip = user?.athleteProfile?.zip_code || "";
     const athleteCountry = athleteZip ? detectCountry(athleteZip) : ("US" as const);
-    const unit = radiusUnit(athleteCountry);
+
+    // Unit follows the radius search location's country first (e.g. typing a
+    // Canadian town flips to km), falling back to the athlete's profile country.
+    const radiusLocCountry: "US" | "CA" | "OTHER" =
+        radiusLocation?.country === "CA" ? "CA"
+        : radiusLocation?.country === "US" ? "US"
+        : radiusLocation?.zipCode ? detectCountry(radiusLocation.zipCode)
+        : athleteCountry;
+    const unit = radiusUnit(radiusLocCountry);
     const athleteLat = user?.athleteProfile?.latitude ?? undefined;
     const athleteLng = user?.athleteProfile?.longitude ?? undefined;
 
@@ -421,12 +429,17 @@ export default function SearchTrainersPage() {
                 if (!loc.includes(locationFilter.toLowerCase())) return false;
             }
 
-            // Radius filter (Issue C) — Haversine distance in km
+            // Radius filter — radiusKm holds the dropdown number; if the
+            // active unit is "mi" we treat it as miles, otherwise km.
             if (radiusEnabled && radiusKm !== null) {
                 if (!t.latitude || !t.longitude) return false;
                 const miles = calculateDistance(radiusCenterLat, radiusCenterLng, t.latitude, t.longitude);
-                const km = miles * 1.60934;
-                if (km > radiusKm) return false;
+                if (unit === "mi") {
+                    if (miles > radiusKm) return false;
+                } else {
+                    const km = miles * 1.60934;
+                    if (km > radiusKm) return false;
+                }
             }
             return true;
         });
@@ -571,11 +584,11 @@ export default function SearchTrainersPage() {
                                     active={radiusKm !== null}
                                     options={[
                                         { value: "any", label: hasCenter ? "Any distance" : "Radius (set location)" },
-                                        { value: "5", label: "Within 5 km" },
-                                        { value: "10", label: "Within 10 km" },
-                                        { value: "25", label: "Within 25 km" },
-                                        { value: "50", label: "Within 50 km" },
-                                        { value: "100", label: "Within 100 km" },
+                                        { value: "5", label: `Within 5 ${unit}` },
+                                        { value: "10", label: `Within 10 ${unit}` },
+                                        { value: "25", label: `Within 25 ${unit}` },
+                                        { value: "50", label: `Within 50 ${unit}` },
+                                        { value: "100", label: `Within 100 ${unit}` },
                                     ]}
                                 />
                                 {radiusKm !== null && (
