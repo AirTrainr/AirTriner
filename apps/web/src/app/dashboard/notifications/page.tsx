@@ -12,7 +12,9 @@ interface OfferNotificationData {
     offer_id?: string;
     offer_status?: string;
     booking_id?: string;
+    bookingId?: string;
     sender_id?: string;
+    senderId?: string;
     thread_id?: string;
     other_user_id?: string;
     url?: string;
@@ -348,14 +350,17 @@ export default function NotificationsPage() {
             return;
         }
 
-        // Messages -> messages thread (or list if no thread id)
+        // Messages -> messages page with query params so the right convo is selected.
+        // Producers (mobile ChatScreen) write camelCase keys (bookingId/senderId);
+        // future producers may use snake_case. Accept both.
         if (MESSAGE_TYPES.has(type)) {
-            const otherId = data.other_user_id || data.sender_id || data.thread_id;
-            if (otherId) {
-                router.push(`/dashboard/messages/${otherId}`);
-            } else {
-                router.push(`/dashboard/messages`);
-            }
+            const bookingId = (data as any).booking_id || (data as any).bookingId;
+            const otherId = data.other_user_id || (data as any).sender_id || (data as any).senderId || data.thread_id;
+            const params = new URLSearchParams();
+            if (bookingId) params.set("bookingId", String(bookingId));
+            if (otherId) params.set("with", String(otherId));
+            const qs = params.toString();
+            router.push(qs ? `/dashboard/messages?${qs}` : `/dashboard/messages`);
             return;
         }
 

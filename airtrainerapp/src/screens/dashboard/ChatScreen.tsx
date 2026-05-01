@@ -217,7 +217,7 @@ export default function ChatScreen({ route, navigation }: any) {
                         content.length > 100
                             ? content.substring(0, 100) + '...'
                             : content,
-                    data: { bookingId, senderId: user.id },
+                    data: { bookingId, senderId: user.id, booking_id: bookingId, sender_id: user.id },
                 });
             }
         } catch (error) {

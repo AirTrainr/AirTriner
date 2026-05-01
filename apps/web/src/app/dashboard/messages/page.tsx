@@ -3,6 +3,7 @@
 import { MessageSquare, Send, Activity, ArrowLeft, CheckCheck, ShieldCheck } from "lucide-react";
 import { FoundingBadge } from "@/components/ui/FoundingBadge";
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSession, AuthUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useMessages } from "@/context/MessagesContext";
@@ -56,6 +57,7 @@ function isYesterday(d: Date) {
 
 export default function MessagesPage() {
     const { markConversationRead } = useMessages();
+    const searchParams = useSearchParams();
     const [user, setUser] = useState<AuthUser | null>(null);
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -64,6 +66,7 @@ export default function MessagesPage() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [showSidebar, setShowSidebar] = useState(true);
+    const [autoSelectApplied, setAutoSelectApplied] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +74,30 @@ export default function MessagesPage() {
         const session = getSession();
         if (session) { setUser(session); loadConversations(session); }
     }, []);
+
+    // Auto-select a conversation when arriving via deep link
+    // (?bookingId=<id> or ?with=<userId>) — e.g. from a notification.
+    useEffect(() => {
+        if (autoSelectApplied || conversations.length === 0) return;
+        const wantBooking = searchParams.get("bookingId");
+        const wantWith = searchParams.get("with") || searchParams.get("trainerId");
+        if (!wantBooking && !wantWith) return;
+        let target: Conversation | undefined;
+        if (wantBooking) {
+            target = conversations.find(c => c.allBookingIds.includes(wantBooking));
+        }
+        if (!target && wantWith) {
+            target = conversations.find(c => c.otherUserId === wantWith);
+        }
+        if (target) {
+            setSelectedBookingId(target.bookingId);
+            loadMessages(target.bookingId, target.allBookingIds);
+            setConversations(prev => prev.map(c => c.bookingId === target!.bookingId ? { ...c, unreadCount: 0 } : c));
+            target.allBookingIds.forEach(id => markConversationRead(id));
+            setShowSidebar(false);
+        }
+        setAutoSelectApplied(true);
+    }, [conversations, searchParams, autoSelectApplied, markConversationRead]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
