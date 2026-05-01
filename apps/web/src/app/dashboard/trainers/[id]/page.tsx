@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getSession, AuthUser } from "@/lib/auth";
 import { supabase, TrainerProfileRow } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api-fetch";
-import { Star, MapPin, MessageSquare, BadgeCheck, ChevronLeft, ChevronRight, Trophy, Calendar as CalendarIcon, Clock, Sparkles, Award, Quote, ShieldCheck, Zap } from "lucide-react";
+import { Star, MapPin, MessageSquare, BadgeCheck, ChevronLeft, ChevronRight, Trophy, Calendar as CalendarIcon, Clock, Sparkles, Award, Quote, ShieldCheck, Zap, AlertCircle } from "lucide-react";
 import { ReviewSection } from "@/components/trainers/ReviewSection";
 import { FoundingBadgeTooltip } from "@/components/ui/FoundingBadge";
 import { toast } from "@/components/ui/Toast";
@@ -181,6 +181,7 @@ export default function BookTrainerPage() {
     const [rawSlotCount, setRawSlotCount] = useState(0);
     const [maxSlotMinutes, setMaxSlotMinutes] = useState(0);
     const [slotsLoading, setSlotsLoading] = useState(false);
+    const [slotsError, setSlotsError] = useState(false);
     const [durationMinutes, setDurationMinutes] = useState(60);
     const [selectedLocation, setSelectedLocation] = useState('');
     const [platformFeePct, setPlatformFeePct] = useState<number>(3);
@@ -333,6 +334,7 @@ export default function BookTrainerPage() {
 
     const loadAvailability = async (dateStr: string, profileId?: string, duration?: number) => {
         setSlotsLoading(true);
+        setSlotsError(false);
         try {
             // availability_slots stores trainer_id as trainer_profiles.id (not users.id)
             const slotTrainerId = profileId || trainerProfileId;
@@ -457,6 +459,9 @@ export default function BookTrainerPage() {
             }
         } catch (err) {
             console.error("Failed to load availability:", err);
+            setSlotsError(true);
+            setSlots([]);
+            setRawSlotCount(0);
         } finally {
             setSlotsLoading(false);
         }
@@ -1081,10 +1086,10 @@ export default function BookTrainerPage() {
                                     <button
                                         key={sport}
                                         onClick={() => setSelectedSport(sport)}
-                                        className={`inline-flex items-center px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all border ${
+                                        className={`inline-flex items-center px-4 py-2.5 rounded-xl text-[13px] font-bold border transition-all ${
                                             selectedSport === sport
-                                                ? "bg-white/[0.10] border-white/[0.22] text-white"
-                                                : "bg-white/[0.03] border-white/[0.07] text-text-main/60 hover:bg-white/[0.07] hover:text-text-main hover:border-white/[0.12]"
+                                                ? "bg-white text-black border-white"
+                                                : "bg-white/4 text-white/60 border-white/10 hover:border-white/30"
                                         }`}
                                     >
                                         {SPORT_LABELS[sport] || formatSportName(sport)}
@@ -1146,21 +1151,37 @@ export default function BookTrainerPage() {
                         <div className="mb-8">
                             <h4 className="text-[10px] text-text-main/40 font-bold uppercase tracking-[0.15em] mb-4">AVAILABLE SLOTS</h4>
                             {slotsLoading ? (
-                                <div className="flex justify-center py-4">
+                                <div className="flex flex-col items-center justify-center py-8 bg-[#12141A] rounded-2xl border border-white/5 px-4 gap-3">
                                     <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                    <p className="text-text-main/50 text-[11px] font-bold uppercase tracking-widest">Checking availability...</p>
+                                </div>
+                            ) : slotsError ? (
+                                <div className="flex flex-col items-center text-center py-8 bg-[#12141A] rounded-2xl border border-red-500/20 px-4 gap-3">
+                                    <AlertCircle size={28} className="text-red-400/80" />
+                                    <p className="text-text-main/70 text-[11px] font-bold uppercase tracking-widest">Couldn&apos;t load availability</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => loadAvailability(selectedDate, undefined, durationMinutes)}
+                                        className="text-primary text-[11px] font-bold uppercase tracking-widest hover:underline"
+                                    >
+                                        Please retry
+                                    </button>
                                 </div>
                             ) : slots.length === 0 ? (
-                                <div className="text-center py-6 bg-[#12141A] rounded-2xl border border-white/5 px-4">
-                                    <p className="text-text-main/40 text-[11px] font-bold uppercase tracking-widest">
+                                <div className="flex flex-col items-center text-center py-8 bg-[#12141A] rounded-2xl border border-white/5 px-4 gap-3">
+                                    <CalendarIcon size={28} className="text-text-main/30" />
+                                    <p className="text-text-main/60 text-[11px] font-bold uppercase tracking-widest">
                                         {rawSlotCount === 0
-                                            ? "No slots available for this day"
+                                            ? "No slots available for this date"
                                             : "No slots fit this session length"}
                                     </p>
-                                    {rawSlotCount > 0 && maxSlotMinutes > 0 && maxSlotMinutes < durationMinutes && (
-                                        <p className="text-text-main/50 text-[11px] mt-2 normal-case tracking-normal">
-                                            The trainer's slots are up to <span className="text-primary font-semibold">{maxSlotMinutes} min</span> long. Try a shorter session.
-                                        </p>
-                                    )}
+                                    <p className="text-text-main/40 text-[11px] normal-case tracking-normal">
+                                        {rawSlotCount === 0
+                                            ? "Try another day."
+                                            : (maxSlotMinutes > 0 && maxSlotMinutes < durationMinutes) ? (
+                                                <>The trainer&apos;s slots are up to <span className="text-primary font-semibold">{maxSlotMinutes} min</span> long. Try a shorter session.</>
+                                            ) : "Try a different session length."}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-2 gap-3">
@@ -1240,7 +1261,7 @@ export default function BookTrainerPage() {
                                     </button>
 
                                     <button
-                                        onClick={() => router.push(`/dashboard/messages?trainerId=${trainer?.id}`)}
+                                        onClick={() => router.push(`/dashboard/messages?trainerId=${trainer?.user_id}`)}
                                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/[0.15] text-text-main/85 hover:text-text-main font-bold text-[13px] transition-all"
                                     >
                                         <MessageSquare size={14} /> Message Trainer

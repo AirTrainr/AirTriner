@@ -754,7 +754,26 @@ export default function SearchTrainersPage() {
             )}
 
             {/* Trainer Grid */}
-            {viewMode === "list" && (<><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+            {viewMode === "list" && filteredTrainers.length === 0 && (
+                <div className="bg-[#13151b] border border-white/[0.06] rounded-2xl p-10 sm:p-14 flex flex-col items-center text-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                        <SearchIcon size={22} className="text-text-main/40" />
+                    </div>
+                    <div>
+                        <h3 className="text-white font-black text-base mb-1.5">No coaches match your filters.</h3>
+                        <p className="text-text-main/50 text-sm max-w-md">
+                            Try widening your search radius, removing some filters, or selecting a different sport.
+                        </p>
+                    </div>
+                    <button
+                        onClick={clearAll}
+                        className="mt-2 px-5 py-2.5 rounded-xl bg-primary text-bg font-black text-sm hover:opacity-90 transition-opacity"
+                    >
+                        Clear all filters
+                    </button>
+                </div>
+            )}
+            {viewMode === "list" && filteredTrainers.length > 0 && (<><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
                 {paginatedTrainers.map((trainer) => (
                     <div
                         key={trainer.id}

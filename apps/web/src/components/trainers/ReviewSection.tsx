@@ -1,7 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Star } from "lucide-react";
+
+const INITIAL_VISIBLE = 3;
 
 type Review = {
     id: string;
@@ -37,11 +39,22 @@ const formatTimeAgo = (dateStr: string) => {
 };
 
 export const ReviewSection: React.FC<ReviewSectionProps> = ({ reviews, totalCount }) => {
+    const [expanded, setExpanded] = useState(false);
+    const canExpand = reviews.length > INITIAL_VISIBLE;
+    const visibleReviews = expanded ? reviews : reviews.slice(0, INITIAL_VISIBLE);
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-black text-white">Reviews</h2>
-                <button className="text-primary font-bold text-sm">See all {totalCount}</button>
+                {canExpand && (
+                    <button
+                        type="button"
+                        onClick={() => setExpanded(e => !e)}
+                        className="text-primary font-bold text-sm hover:underline"
+                    >
+                        {expanded ? "Show less" : `See all ${totalCount}`}
+                    </button>
+                )}
             </div>
             <div className="space-y-4">
                 {reviews.length === 0 ? (
@@ -49,7 +62,7 @@ export const ReviewSection: React.FC<ReviewSectionProps> = ({ reviews, totalCoun
                         <p className="text-text-main/40 text-sm font-medium italic">No reviews yet for this trainer.</p>
                     </div>
                 ) : (
-                    reviews.map((review) => (
+                    visibleReviews.map((review) => (
                         <div key={review.id} className="bg-[#1A1C23] border border-white/5 rounded-2xl p-6 transition-all hover:border-white/10">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex items-center gap-3">

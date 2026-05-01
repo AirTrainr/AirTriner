@@ -612,34 +612,46 @@ export default function ProfilePage() {
                         type="button"
                         onClick={() => avatarInputRef.current?.click()}
                         disabled={avatarUploading}
-                        className="relative w-20 h-20 rounded-full shrink-0 group focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-surface"
-                        title="Click to change profile photo"
+                        className="relative shrink-0 group focus:outline-none flex flex-col items-center gap-1.5"
+                        title={avatarUrl ? "Click to change profile photo" : "Click to add a profile photo"}
                     >
-                        {avatarUrl ? (
-                            <img src={avatarUrl} alt="Profile" className="w-20 h-20 rounded-full object-cover border border-white/[0.10]" />
-                        ) : (
-                            <div className="w-20 h-20 rounded-full bg-white/[0.08] border border-white/[0.10] flex items-center justify-center font-black text-2xl text-text-main uppercase">
-                                {form.firstName?.[0]}{form.lastName?.[0]}
-                            </div>
+                        <div className="relative w-20 h-20 rounded-full focus-within:ring-2 focus-within:ring-primary/50">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt="Profile" className="w-20 h-20 rounded-full object-cover border border-white/[0.10]" />
+                            ) : (
+                                <div className="w-20 h-20 rounded-full bg-white/[0.08] border-2 border-dashed border-white/[0.18] flex items-center justify-center text-text-main/60">
+                                    <Camera size={22} />
+                                </div>
+                            )}
+                            {avatarUrl && (
+                                <div className={`absolute inset-0 rounded-full bg-black/50 flex items-center justify-center transition-opacity ${avatarUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                                    {avatarUploading ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-white">
+                                            <path d="M12 20h9" />
+                                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                        </svg>
+                                    )}
+                                </div>
+                            )}
+                            {/* Always-visible pencil badge (only when photo exists) */}
+                            {avatarUrl && (
+                                <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary text-bg border-2 border-surface flex items-center justify-center shadow-lg">
+                                    {avatarUploading ? (
+                                        <div className="w-3 h-3 border-2 border-bg/30 border-t-bg rounded-full animate-spin" />
+                                    ) : (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                            <path d="M12 20h9" />
+                                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                        </svg>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {!avatarUrl && (
+                            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Add Photo</span>
                         )}
-                        <div className={`absolute inset-0 rounded-full bg-black/50 flex items-center justify-center transition-opacity ${avatarUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-                            {avatarUploading ? (
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : (
-                                <Camera size={18} className="text-white" />
-                            )}
-                        </div>
-                        {/* Always-visible pencil badge */}
-                        <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary text-bg border-2 border-surface flex items-center justify-center shadow-lg">
-                            {avatarUploading ? (
-                                <div className="w-3 h-3 border-2 border-bg/30 border-t-bg rounded-full animate-spin" />
-                            ) : (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                                    <path d="M12 20h9" />
-                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                </svg>
-                            )}
-                        </div>
                     </button>
                     <div className="flex-1 min-w-[180px]">
                         {avatarUploading && (
