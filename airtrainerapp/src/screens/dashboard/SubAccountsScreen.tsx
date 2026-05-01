@@ -45,20 +45,32 @@ type SubAccountProfileData = {
     notes?: string;
 };
 
+function parseDOBParts(dob: string): { y: number; m: number; d: number } | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dob || '');
+    if (!match) return null;
+    const y = Number(match[1]);
+    const m = Number(match[2]);
+    const d = Number(match[3]);
+    if (!y || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    return { y, m, d };
+}
+
 function computeAge(dob: string): number {
-    const d = new Date(dob);
-    if (isNaN(d.getTime())) return 0;
+    const p = parseDOBParts(dob);
+    if (!p) return 0;
     const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    let age = now.getFullYear() - p.y;
+    const monthDiff = now.getMonth() + 1 - p.m;
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < p.d)) age--;
     return age;
 }
 
+const DOB_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 function formatBirthday(dob: string): string {
-    const d = new Date(dob);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const p = parseDOBParts(dob);
+    if (!p) return '';
+    return `${DOB_MONTHS[p.m - 1]} ${p.d}, ${p.y}`;
 }
 
 type SubAccount = {
@@ -181,8 +193,8 @@ export default function SubAccountsScreen({ navigation }: any) {
         }
 
         if (dateOfBirth) {
-            const d = new Date(dateOfBirth);
-            if (isNaN(d.getTime())) {
+            const parts = parseDOBParts(dateOfBirth);
+            if (!parts) {
                 errors.date_of_birth = 'Please enter a valid date';
             } else {
                 const a = computeAge(dateOfBirth);

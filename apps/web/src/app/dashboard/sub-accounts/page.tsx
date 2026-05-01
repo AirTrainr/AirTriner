@@ -6,22 +6,32 @@ import { getSession, AuthUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { formatSportName } from "@/lib/format";
 
+function parseDOBParts(dob: string): { y: number; m: number; d: number } | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dob || "");
+    if (!match) return null;
+    const y = Number(match[1]);
+    const m = Number(match[2]);
+    const d = Number(match[3]);
+    if (!y || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    return { y, m, d };
+}
+
 function computeAge(dob: string): number {
-    if (!dob) return NaN;
-    const d = new Date(dob);
-    if (isNaN(d.getTime())) return NaN;
+    const p = parseDOBParts(dob);
+    if (!p) return NaN;
     const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    let age = now.getFullYear() - p.y;
+    const monthDiff = now.getMonth() + 1 - p.m;
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < p.d)) age--;
     return age;
 }
 
+const DOB_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 function formatBirthday(dob: string): string {
-    if (!dob) return "";
-    const d = new Date(dob);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const p = parseDOBParts(dob);
+    if (!p) return "";
+    return `${DOB_MONTHS[p.m - 1]} ${p.d}, ${p.y}`;
 }
 
 interface SubAccount {
@@ -170,8 +180,8 @@ export default function SubAccountsPage() {
         }
 
         if (form.date_of_birth) {
-            const d = new Date(form.date_of_birth);
-            if (isNaN(d.getTime())) {
+            const parts = parseDOBParts(form.date_of_birth);
+            if (!parts) {
                 errors.date_of_birth = "Please enter a valid date";
             } else {
                 const age = computeAge(form.date_of_birth);
