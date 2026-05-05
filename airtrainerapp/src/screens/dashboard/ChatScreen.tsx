@@ -384,14 +384,7 @@ export default function ChatScreen({ route, navigation }: any) {
                         ) : null}
                     </View>
 
-                    <Pressable
-                        style={styles.callButton}
-                        accessibilityLabel={`Call ${otherUserName}`}
-                        accessibilityRole="button"
-                        hitSlop={8}
-                    >
-                        <Ionicons name="call-outline" size={20} color={Colors.primary} />
-                    </Pressable>
+
                 </View>
 
                 <View style={styles.divider} />
@@ -498,14 +491,6 @@ const styles = StyleSheet.create({
         fontSize: FontSize.xs,
         color: Colors.textSecondary,
         marginTop: 1,
-    },
-    callButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: Colors.primaryMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     divider: {
         height: 1,
