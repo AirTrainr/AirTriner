@@ -41,15 +41,15 @@ import { radiusUnit, detectCountry } from '../../lib/units';
 type TrainingOffer = {
     id: string;
     trainer_id: string;
-    title: string;
-    description: string | null;
+    athlete_id: string | null;
+    status: string;
+    message: string | null;
     price: number;
     sport: string | null;
-    duration_minutes: number;
-    is_active: boolean;
-    max_athletes: number | null;
-    athlete_count: number;
+    session_length_min: number;
+    proposed_dates: any;
     created_at: string;
+    updated_at: string;
 };
 
 type FormState = {
@@ -376,42 +376,20 @@ export default function TrainingOffersScreen({ navigation }: any) {
         { value: 'expired', label: 'Expired' },
     ];
 
-    // Auto-load athlete pool when filters become active without a search query
-    useEffect(() => {
-        if (
-            activeFiltersCount > 0 &&
-            athleteQuery.trim().length < 2 &&
-            athleteResults.length === 0 &&
-            !selectedAthlete
-        ) {
-            loadAthletePool();
-        }
-    }, [activeFiltersCount, athleteQuery, athleteResults.length, selectedAthlete, loadAthletePool]);
-
     // Data fetching
 
     const fetchOffers = useCallback(async () => {
-        if (!trainerProfile?.id) return;
+        if (!user?.id) return;
         try {
             const { data, error } = await supabase
                 .from('training_offers')
                 .select('*')
-                .eq('trainer_id', trainerProfile.id)
+                .eq('trainer_id', user.id)
+                .is('athlete_id', null)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
             const offerList = (data || []) as TrainingOffer[];
-
-            const capsReached = offerList.filter(
-                (o) => o.is_active && o.max_athletes != null && (o.athlete_count ?? 0) >= o.max_athletes
-            );
-            if (capsReached.length > 0) {
-                await supabase
-                    .from('training_offers')
-                    .update({ is_active: false })
-                    .in('id', capsReached.map((o) => o.id));
-                capsReached.forEach((o) => { o.is_active = false; });
-            }
 
             setOffers(offerList);
         } catch (err: any) {
@@ -423,13 +401,13 @@ export default function TrainingOffersScreen({ navigation }: any) {
     }, [trainerProfile?.id]);
 
     const fetchSentOffers = useCallback(async () => {
-        if (!trainerProfile?.id) return;
+        if (!user?.id) return;
         setIsSentLoading(true);
         try {
             const { data, error } = await supabase
                 .from('training_offers')
                 .select('*, athlete:users!training_offers_athlete_id_fkey(first_name, last_name)')
-                .eq('trainer_id', trainerProfile.id)
+                .eq('trainer_id', user.id)
                 .not('athlete_id', 'is', null)
                 .order('created_at', { ascending: false });
 
@@ -604,6 +582,18 @@ export default function TrainingOffersScreen({ navigation }: any) {
         }
     }, []);
 
+    // Auto-load athlete pool when filters become active without a search query
+    useEffect(() => {
+        if (
+            activeFiltersCount > 0 &&
+            athleteQuery.trim().length < 2 &&
+            athleteResults.length === 0 &&
+            !selectedAthlete
+        ) {
+            loadAthletePool();
+        }
+    }, [activeFiltersCount, athleteQuery, athleteResults.length, selectedAthlete, loadAthletePool]);
+
     // Form validation
 
     const validate = (): boolean => {
@@ -621,15 +611,15 @@ export default function TrainingOffersScreen({ navigation }: any) {
 
     const handleSave = async () => {
         if (!validate()) return;
-        if (!trainerProfile?.id) {
-            Alert.alert('Error', 'Trainer profile not found.');
+        if (!user?.id) {
+            Alert.alert('Error', 'User not found.');
             return;
         }
         setIsSaving(true);
         try {
             const maxAthletes = form.max_athletes.trim() ? parseInt(form.max_athletes, 10) : null;
             const { error } = await supabase.from('training_offers').insert({
-                trainer_id: trainerProfile.id,
+                trainer_id: user.id,
                 message: form.title.trim(),
                 price: parseFloat(form.price),
                 sport: form.sport.trim() || null,
@@ -734,7 +724,7 @@ export default function TrainingOffersScreen({ navigation }: any) {
     const handleLongPress = (offer: TrainingOffer) => {
         Alert.alert(
             'Delete Offer',
-            `Delete "${offer.title}"? This cannot be undone.`,
+            `Delete "${offer.message || 'this offer'}"? This cannot be undone.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -1718,7 +1708,7 @@ function OfferCard({ offer, onLongPress }: { offer: TrainingOffer; onLongPress: 
                     {/* Top row */}
                     <View style={styles.cardTop}>
                         <View style={[styles.sportDot, { backgroundColor: sportColor }]} />
-                        <Text style={styles.cardTitle} numberOfLines={1}>{offer.title}</Text>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{offer.message || '—'}</Text>
                         <Badge
                             label={`$${Number(offer.price).toFixed(0)}`}
                             color={Colors.primary}
@@ -1726,11 +1716,6 @@ function OfferCard({ offer, onLongPress }: { offer: TrainingOffer; onLongPress: 
                             size="md"
                         />
                     </View>
-
-                    {/* Description */}
-                    {!!offer.description && (
-                        <Text style={styles.cardDesc} numberOfLines={2}>{offer.description}</Text>
-                    )}
 
                     {/* Meta row */}
                     <View style={styles.cardMeta}>
@@ -1742,21 +1727,11 @@ function OfferCard({ offer, onLongPress }: { offer: TrainingOffer; onLongPress: 
                         )}
                         <View style={styles.metaChip}>
                             <Ionicons name="time-outline" size={12} color={Colors.textSecondary} />
-                            <Text style={styles.metaChipText}>{offer.duration_minutes} min</Text>
+                            <Text style={styles.metaChipText}>{offer.session_length_min} min</Text>
                         </View>
-                        {offer.max_athletes != null && (
-                            <View style={styles.metaChip}>
-                                <Ionicons name="people-outline" size={12} color={Colors.textSecondary} />
-                                <Text style={styles.metaChipText}>
-                                    {offer.athlete_count ?? 0}/{offer.max_athletes}
-                                </Text>
-                            </View>
-                        )}
                         <View style={[styles.metaChip, { marginLeft: 'auto' }]}>
-                            <View style={[styles.activeDot, { backgroundColor: offer.is_active ? Colors.success : Colors.textTertiary }]} />
-                            <Text style={[styles.metaChipText, { color: offer.is_active ? Colors.success : Colors.textTertiary }]}>
-                                {offer.is_active ? 'Active' : offer.max_athletes != null && (offer.athlete_count ?? 0) >= offer.max_athletes ? 'Full' : 'Inactive'}
-                            </Text>
+                            <View style={[styles.activeDot, { backgroundColor: Colors.success }]} />
+                            <Text style={[styles.metaChipText, { color: Colors.success }]}>Active</Text>
                         </View>
                     </View>
                 </View>
