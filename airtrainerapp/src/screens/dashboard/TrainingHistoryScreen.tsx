@@ -13,7 +13,10 @@ import { supabase, BookingRow, UserRow } from '../../lib/supabase';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight } from '../../theme';
 import { ScreenWrapper, ScreenHeader, Card, Badge, Avatar, EmptyState, LoadingScreen, StatCard, SectionHeader } from '../../components/ui';
 
-type HistoryBooking = BookingRow & { trainer: Pick<UserRow, 'first_name' | 'last_name'> };
+type HistoryBooking = BookingRow & {
+    trainer?: Pick<UserRow, 'first_name' | 'last_name'>;
+    athlete?: Pick<UserRow, 'first_name' | 'last_name'>;
+};
 
 type SectionData = {
     title: string;
@@ -53,13 +56,18 @@ export default function TrainingHistoryScreen({ navigation }: any) {
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    const isTrainer = user?.role === 'trainer' || user?.role === 'admin';
+
     const fetchHistory = useCallback(async () => {
         if (!user) return;
         try {
+            const selectClause = isTrainer
+                ? '*, athlete:users!bookings_athlete_id_fkey(first_name, last_name)'
+                : '*, trainer:users!bookings_trainer_id_fkey(first_name, last_name)';
             const { data, error } = await supabase
                 .from('bookings')
-                .select('*, trainer:users!bookings_trainer_id_fkey(first_name, last_name)')
-                .eq('athlete_id', user.id)
+                .select(selectClause)
+                .eq(isTrainer ? 'trainer_id' : 'athlete_id', user.id)
                 .eq('status', 'completed')
                 .order('created_at', { ascending: false });
 
@@ -87,7 +95,8 @@ export default function TrainingHistoryScreen({ navigation }: any) {
     const sections = groupByMonth(bookings);
 
     const renderBooking = ({ item, index }: { item: HistoryBooking; index: number }) => {
-        const trainerName = `${item.trainer?.first_name || ''} ${item.trainer?.last_name || ''}`.trim();
+        const person = isTrainer ? item.athlete : item.trainer;
+        const trainerName = `${person?.first_name || ''} ${person?.last_name || ''}`.trim();
 
         return (
             <Animated.View entering={FadeInDown.duration(200).delay(index * 30)}>
@@ -159,7 +168,7 @@ export default function TrainingHistoryScreen({ navigation }: any) {
                         color={Colors.primary}
                     />
                     <StatCard
-                        label="Total Spent"
+                        label={isTrainer ? 'Total Earned' : 'Total Spent'}
                         value={`$${totalSpent.toFixed(0)}`}
                         icon="wallet"
                         color={Colors.primary}

@@ -643,7 +643,17 @@ export default function BookingDetailScreen({ route, navigation }: any) {
                     </View>
                     <TouchableOpacity
                         style={styles.messageButton}
-                        onPress={() => navigation.navigate('Chat', { bookingId, otherUser })}
+                        onPress={async () => {
+                            const { data } = await supabase
+                                .from('bookings')
+                                .select('id')
+                                .eq('athlete_id', booking.athlete_id)
+                                .eq('trainer_id', booking.trainer_id);
+                            const allBookingIds = data && data.length > 0
+                                ? data.map((b: any) => b.id)
+                                : [bookingId];
+                            navigation.navigate('Chat', { bookingId, allBookingIds, otherUser, sport: booking.sport });
+                        }}
                         activeOpacity={0.7}
                     >
                         <Ionicons name="chatbubble" size={18} color="#fff" />

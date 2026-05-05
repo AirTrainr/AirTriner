@@ -45,9 +45,16 @@ const formatDurationLabel = (mins: number): string => {
 type SubAccount = {
     id: string;
     parent_user_id: string;
-    first_name: string;
-    last_name: string;
-    avatar_url?: string | null;
+    is_active: boolean;
+    profile_data: {
+        first_name: string;
+        last_name: string;
+        date_of_birth?: string;
+        sports?: string[];
+        skill_level?: string;
+        notes?: string;
+        [key: string]: any;
+    };
     [key: string]: any;
 };
 
@@ -118,6 +125,8 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
     const { trainerId, trainer: trainerParam } = route.params;
     // Defensive: ensure trainer is never null/undefined
     const trainer = trainerParam || {};
+    // availability_slots and availability_recurring store trainer_profiles.id (not users.id)
+    const trainerProfileId: string = trainer.id ?? '';
     const [reviews, setReviews] = useState<(ReviewRow & { reviewer: UserRow })[]>([]);
     const [isBooking, setIsBooking] = useState(false);
     const [bioExpanded, setBioExpanded] = useState(false);
@@ -272,7 +281,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
             const { data } = await supabase
                 .from('availability_slots')
                 .select('day_of_week')
-                .eq('trainer_id', trainerId)
+                .eq('trainer_id', trainerProfileId)
                 .eq('is_blocked', false);
             const days = new Set((data || []).map((s: any) => s.day_of_week as number));
 
@@ -281,7 +290,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                 const { data: recurData, error: recurErr } = await supabase
                     .from('availability_recurring')
                     .select('day_of_week')
-                    .eq('trainer_id', trainerId)
+                    .eq('trainer_id', trainerProfileId)
                     .eq('is_active', true);
                 if (!recurErr && recurData?.length) {
                     recurData.forEach((r: any) => days.add(r.day_of_week as number));
@@ -310,7 +319,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
             const { data: slotsData, error: slotsErr } = await supabase
                 .from('availability_slots')
                 .select('day_of_week')
-                .eq('trainer_id', trainerId)
+                .eq('trainer_id', trainerProfileId)
                 .eq('is_blocked', false);
             if (slotsErr) throw slotsErr;
 
@@ -326,7 +335,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                 const { data: recurData, error: recurErr } = await supabase
                     .from('availability_recurring')
                     .select('day_of_week')
-                    .eq('trainer_id', trainerId)
+                    .eq('trainer_id', trainerProfileId)
                     .eq('is_active', true);
                 if (!recurErr && recurData?.length) {
                     recurData.forEach((r: { day_of_week: number }) => {
@@ -386,7 +395,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
         } catch {
             setAvailableDates(new Map());
         }
-    }, [trainerId]);
+    }, [trainerProfileId]);
 
     const fetchPlatformFee = async () => {
         try {
@@ -408,7 +417,8 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
             const { data } = await supabase
                 .from('sub_accounts')
                 .select('*')
-                .eq('parent_user_id', user.id);
+                .eq('parent_user_id', user.id)
+                .eq('is_active', true);
             setSubAccounts((data || []) as SubAccount[]);
         } catch {
             setSubAccounts([]);
@@ -436,7 +446,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                 supabase
                     .from('availability_slots')
                     .select('*')
-                    .eq('trainer_id', trainerId)
+                    .eq('trainer_id', trainerProfileId)
                     .eq('day_of_week', dayOfWeek)
                     .eq('is_blocked', false),
                 supabase
@@ -457,7 +467,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                 const { data: recurData, error: recurErr } = await supabase
                     .from('availability_recurring')
                     .select('start_time, end_time, is_active')
-                    .eq('trainer_id', trainerId)
+                    .eq('trainer_id', trainerProfileId)
                     .eq('day_of_week', dayOfWeek)
                     .eq('is_active', true);
 
@@ -546,7 +556,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
         } finally {
             setLoadingSlots(false);
         }
-    }, [trainerId, selectedDuration]);
+    }, [trainerProfileId, selectedDuration]);
 
     useEffect(() => {
         if (showBookingModal && selectedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -628,7 +638,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
 
             if (booking) {
                 const bookingForLabel = selectedSubAccount
-                    ? `${selectedSubAccount.first_name}`
+                    ? `${selectedSubAccount.profile_data.first_name}`
                     : 'myself';
 
                 const notesPart = bookingNotes.trim() ? `\n\nNotes: ${bookingNotes.trim()}` : '';
@@ -1277,9 +1287,6 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                                         ]}>
                                                             {cell.day}
                                                         </Text>
-                                                        {hasAvailability && !isSelected && (
-                                                            <View style={styles.calendarAvailDot} />
-                                                        )}
                                                     </TouchableOpacity>
                                                 );
                                             })}
@@ -1287,7 +1294,6 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                         {/* Legend */}
                                         <View style={styles.calendarLegendRow}>
                                             <View style={styles.calendarLegendItem}>
-                                                <View style={[styles.calendarLegendDot, { backgroundColor: '#10b981' }]} />
                                                 <Text style={styles.calendarLegendText}>Available</Text>
                                             </View>
                                             <Text style={styles.calendarSelectedDateText}>
@@ -1453,7 +1459,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                     </View>
                                     <Text style={styles.subAccountSelectorText}>
                                         {selectedSubAccount
-                                            ? `${selectedSubAccount.first_name} ${selectedSubAccount.last_name}`
+                                            ? `${selectedSubAccount.profile_data.first_name} ${selectedSubAccount.profile_data.last_name}`
                                             : 'Myself'}
                                     </Text>
                                 </View>
@@ -1504,14 +1510,14 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                         >
                                             <View style={styles.subAccountAvatar}>
                                                 <Text style={styles.subAccountAvatarText}>
-                                                    {(acc.first_name?.[0] || '') + (acc.last_name?.[0] || '')}
+                                                    {(acc.profile_data.first_name?.[0] || '') + (acc.profile_data.last_name?.[0] || '')}
                                                 </Text>
                                             </View>
                                             <Text style={[
                                                 styles.subAccountOptionText,
                                                 selectedSubAccount?.id === acc.id && styles.subAccountOptionTextActive,
                                             ]}>
-                                                {acc.first_name} {acc.last_name}
+                                                {acc.profile_data.first_name} {acc.profile_data.last_name}
                                             </Text>
                                             {selectedSubAccount?.id === acc.id && (
                                                 <Ionicons name="checkmark" size={16} color={Colors.primary} />

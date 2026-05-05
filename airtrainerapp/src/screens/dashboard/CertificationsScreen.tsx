@@ -27,7 +27,9 @@ type Certification = {
 export default function CertificationsScreen({ navigation }: any) {
     const { user, refreshUser } = useAuth();
 
-    const rawCerts = (user?.trainerProfile?.certifications as any[]) || [];
+    const rawCerts = Array.isArray(user?.trainerProfile?.certifications)
+        ? (user.trainerProfile.certifications as any[])
+        : [];
     const certs: Certification[] = rawCerts.map((c: any) =>
         typeof c === 'string' ? { name: c } : c,
     );
@@ -164,47 +166,38 @@ export default function CertificationsScreen({ navigation }: any) {
             ) : (
                 certs.map((cert, i) => (
                     <Animated.View key={i} entering={FadeInDown.duration(200).delay(i * 100)}>
-                        <Pressable
-                            delayLongPress={500}
-                            onLongPress={() => handleRemoveCert(i)}
-                            accessibilityLabel={`Certification: ${cert.name}`}
-                            style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-                        >
-                            <Card style={styles.certCard}>
-                                <View style={styles.certRow}>
-                                    <View style={styles.certIconWrap}>
-                                        <Ionicons name="document-text" size={22} color={Colors.primary} />
-                                    </View>
-                                    <View style={styles.certInfo}>
-                                        <Text style={styles.certName}>{cert.name}</Text>
-                                        {cert.issuer ? (
-                                            <Text style={styles.certIssuer}>{cert.issuer}</Text>
-                                        ) : null}
-                                    </View>
-                                    <View style={styles.certRight}>
-                                        {cert.year ? (
-                                            <View style={styles.yearBadge}>
-                                                <Text style={styles.yearBadgeText}>{cert.year}</Text>
-                                            </View>
-                                        ) : null}
-                                        <Ionicons
-                                            name="ellipsis-vertical"
-                                            size={16}
-                                            color={Colors.textTertiary}
-                                        />
-                                    </View>
+                        <Card style={styles.certCard}>
+                            <View style={styles.certRow}>
+                                <View style={styles.certIconWrap}>
+                                    <Ionicons name="document-text" size={22} color={Colors.primary} />
                                 </View>
-                            </Card>
-                        </Pressable>
+                                <View style={styles.certInfo}>
+                                    <Text style={styles.certName}>{cert.name}</Text>
+                                    {cert.issuer ? (
+                                        <Text style={styles.certIssuer}>{cert.issuer}</Text>
+                                    ) : null}
+                                </View>
+                                <View style={styles.certRight}>
+                                    {cert.year ? (
+                                        <View style={styles.yearBadge}>
+                                            <Text style={styles.yearBadgeText}>{cert.year}</Text>
+                                        </View>
+                                    ) : null}
+                                    <Pressable
+                                        onPress={() => handleRemoveCert(i)}
+                                        hitSlop={8}
+                                        accessibilityLabel={`Remove ${cert.name}`}
+                                        style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+                                    >
+                                        <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                                    </Pressable>
+                                </View>
+                            </View>
+                        </Card>
                     </Animated.View>
                 ))
             )}
 
-            {certs.length > 0 && (
-                <Text style={styles.longPressHint}>
-                    Long press a certification to remove it
-                </Text>
-            )}
 
             {/* Add Certification Modal */}
             <Modal
@@ -364,13 +357,6 @@ const styles = StyleSheet.create({
         fontWeight: FontWeight.bold,
         color: Colors.primary,
     },
-    longPressHint: {
-        textAlign: 'center',
-        fontSize: FontSize.xs,
-        color: Colors.textTertiary,
-        marginTop: Spacing.md,
-    },
-
     // Modal
     modalOverlay: {
         flex: 1,

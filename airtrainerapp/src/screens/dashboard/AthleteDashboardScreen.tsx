@@ -59,6 +59,7 @@ export default function AthleteDashboardScreen({ navigation }: any) {
     const [recentBookings, setRecentBookings] = useState<BookingWithOtherUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
     const fetchDashboardData = useCallback(async () => {
         if (!user) return;
@@ -108,6 +109,12 @@ export default function AthleteDashboardScreen({ navigation }: any) {
             } else {
                 setRecentBookings([]);
             }
+            const { count } = await supabase
+                .from('notifications')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .eq('read', false);
+            setUnreadNotifCount(count ?? 0);
         } catch (error) {
             console.error('Error fetching athlete dashboard:', error);
         } finally {
@@ -118,6 +125,13 @@ export default function AthleteDashboardScreen({ navigation }: any) {
     useEffect(() => {
         fetchDashboardData();
     }, [fetchDashboardData]);
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchDashboardData();
+        });
+        return unsubscribe;
+    }, [navigation, fetchDashboardData]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -184,7 +198,7 @@ export default function AthleteDashboardScreen({ navigation }: any) {
                     accessibilityLabel="Notifications"
                 >
                     <Ionicons name="notifications-outline" size={22} color={Colors.text} />
-                    <View style={styles.notifDot} />
+                    {unreadNotifCount > 0 && <View style={styles.notifDot} />}
                 </Pressable>
             </Animated.View>
 

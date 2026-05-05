@@ -48,6 +48,7 @@ export default function TrainerDashboardScreen({ navigation }: any) {
     } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -156,6 +157,13 @@ export default function TrainerDashboardScreen({ navigation }: any) {
             } else {
                 setRecentBookings([]);
             }
+            const { count: unreadCount } = await supabase
+                .from('notifications')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .eq('read', false);
+            setUnreadNotifCount(unreadCount ?? 0);
+
         } catch (error) {
             console.error('Error fetching trainer dashboard:', error);
         } finally {
@@ -165,7 +173,9 @@ export default function TrainerDashboardScreen({ navigation }: any) {
 
     useEffect(() => {
         fetchDashboardData();
-    }, [fetchDashboardData]);
+        const unsubscribe = navigation.addListener('focus', fetchDashboardData);
+        return unsubscribe;
+    }, [fetchDashboardData, navigation]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -254,6 +264,7 @@ export default function TrainerDashboardScreen({ navigation }: any) {
                     accessibilityLabel="Notifications"
                 >
                     <Ionicons name="notifications-outline" size={22} color={Colors.text} />
+                    {unreadNotifCount > 0 && <View style={styles.notifDot} />}
                 </Pressable>
             </Animated.View>
 
@@ -476,6 +487,15 @@ const styles = StyleSheet.create({
         borderColor: Colors.glassBorder,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    notifDot: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Colors.error,
     },
     headerCenter: {
         flex: 1,
