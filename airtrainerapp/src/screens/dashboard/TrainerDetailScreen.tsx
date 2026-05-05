@@ -692,7 +692,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
         : trainer.average_rating ? Number(trainer.average_rating).toFixed(1) : 'New';
 
     const sports: string[] = trainer.sports || [];
-    const certifications: string[] = Array.isArray(trainer.certifications) ? trainer.certifications : [];
+    const certifications: any[] = Array.isArray(trainer.certifications) ? trainer.certifications : [];
 
     // Verification badge logic
     const totalSessions = trainer.total_sessions || 0;
@@ -982,7 +982,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                             {certifications.map((cert, index) => (
                                 <View key={index} style={styles.certChip}>
                                     <Ionicons name="ribbon-outline" size={14} color={Colors.primary} />
-                                    <Text style={styles.certChipText}>{cert}</Text>
+                                    <Text style={styles.certChipText}>{typeof cert === 'string' ? cert : cert.name}</Text>
                                 </View>
                             ))}
                         </View>
