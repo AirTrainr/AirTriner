@@ -211,7 +211,7 @@ function TabNavigator() {
                                     </Text>
                                 </View>
                             )}
-                            {route.name === 'Profile' && unreadNotifications > 0 && (
+                            {route.name === 'Profile' && !isTrainer && unreadNotifications > 0 && (
                                 <View style={styles.badge}>
                                     <Text style={styles.badgeText}>
                                         {unreadNotifications > 99 ? '99+' : unreadNotifications}
