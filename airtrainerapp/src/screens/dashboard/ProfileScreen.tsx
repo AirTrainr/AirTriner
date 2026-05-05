@@ -127,8 +127,6 @@ export default function ProfileScreen({ navigation }: any) {
             title: 'Preferences',
             items: [
                 { icon: 'notifications-outline' as const, label: 'Push Notifications', toggle: true as const },
-                { icon: 'moon-outline' as const, label: 'Dark Mode', info: 'Enabled' },
-                { icon: 'globe-outline' as const, label: 'Language', info: 'English' },
             ],
         },
         {
