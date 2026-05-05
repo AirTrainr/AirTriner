@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert, Share,
+    View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -217,8 +219,10 @@ export default function EarningsScreen({ navigation }: any) {
     const handleExportCSV = async () => {
         try {
             let csvContent: string;
+            let filename: string;
 
             if (isTrainer) {
+                filename = `earnings_${new Date().toISOString().split('T')[0]}.csv`;
                 const headers = ['Date', 'Sport', 'Duration (min)', 'Amount ($)', 'Status'];
                 const rows = completedBookings.map((b) => [
                     new Date(b.scheduled_at).toLocaleDateString(),
@@ -231,6 +235,7 @@ export default function EarningsScreen({ navigation }: any) {
                     .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
                     .join('\n');
             } else {
+                filename = `payments_${new Date().toISOString().split('T')[0]}.csv`;
                 const headers = ['Date Paid', 'Trainer', 'Sport', 'Duration (min)', 'Amount ($)', 'Platform Fee ($)', 'Net Payout ($)', 'Status'];
                 const rows = athleteTransactions.map((t) => [
                     new Date(t.created_at).toLocaleDateString(),
@@ -247,9 +252,14 @@ export default function EarningsScreen({ navigation }: any) {
                     .join('\n');
             }
 
-            await Share.share({
-                message: csvContent,
-                title: isTrainer ? 'Earnings Export' : 'Payments Export',
+            const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+            await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+                encoding: 'utf8',
+            });
+            await Sharing.shareAsync(fileUri, {
+                mimeType: 'text/csv',
+                dialogTitle: isTrainer ? 'Export Earnings' : 'Export Payments',
+                UTI: 'public.comma-separated-values-text',
             });
         } catch (error) {
             console.error('Error exporting CSV:', error);
