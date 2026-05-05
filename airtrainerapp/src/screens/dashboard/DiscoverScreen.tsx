@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
     FlatList, Modal, Dimensions, TextInput, Pressable, Animated as RNAnimated,
-    Platform, Image,
+    Platform, Image, Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1056,7 +1057,24 @@ export default function DiscoverScreen({ navigation }: any) {
             <View style={styles.fabContainer}>
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+                    onPress={async () => {
+                        if (viewMode === 'list') {
+                            if (Platform.OS === 'android') {
+                                const { status } = await Location.requestForegroundPermissionsAsync();
+                                if (status !== 'granted') {
+                                    Alert.alert(
+                                        'Location Required',
+                                        'Please grant location permission to use the map view.',
+                                        [{ text: 'OK' }]
+                                    );
+                                    return;
+                                }
+                            }
+                            setViewMode('map');
+                        } else {
+                            setViewMode('list');
+                        }
+                    }}
                     activeOpacity={0.85}
                 >
                     <Ionicons

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import { formatSportName } from '../../lib/format';
 import { detectCountry, miToKm, radiusUnit } from '../../lib/units';
@@ -10,6 +12,8 @@ import {
     ScreenWrapper, Card, Button, Avatar, Badge,
     ListItem, SectionHeader, Divider,
 } from '../../components/ui';
+
+const MAX_SUB_ACCOUNTS = 6;
 
 // ── Quick action definition ──
 interface QuickAction {
@@ -47,6 +51,22 @@ export default function ProfileScreen({ navigation }: any) {
     const { user, logout, refreshUser } = useAuth();
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [subAccountCount, setSubAccountCount] = useState(0);
+    const isTrainer = user?.role === 'trainer' || user?.role === 'admin';
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!user?.id || isTrainer) return;
+            supabase
+                .from('sub_accounts')
+                .select('id', { count: 'exact', head: true })
+                .eq('parent_user_id', user.id)
+                .eq('is_active', true)
+                .then(({ count }) => {
+                    if (count !== null) setSubAccountCount(count);
+                });
+        }, [user?.id, isTrainer])
+    );
 
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', () => {
@@ -69,7 +89,6 @@ export default function ProfileScreen({ navigation }: any) {
         ]);
     };
 
-    const isTrainer = user?.role === 'trainer' || user?.role === 'admin';
     const tp = user?.trainerProfile;
     const ap = user?.athleteProfile;
     const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
@@ -82,7 +101,7 @@ export default function ProfileScreen({ navigation }: any) {
                 { icon: 'person-outline' as const, label: 'Edit Profile', screen: 'EditProfile' },
                 { icon: 'notifications-outline' as const, label: 'Notifications', screen: 'Notifications' },
                 ...(!isTrainer ? [
-                    { icon: 'people-outline' as const, label: 'Sub-Accounts', screen: 'SubAccounts', badge: '0/6' },
+                    { icon: 'people-outline' as const, label: 'Sub-Accounts', screen: 'SubAccounts', badge: `${subAccountCount}/${MAX_SUB_ACCOUNTS}` },
                 ] : []),
                 { icon: 'card-outline' as const, label: 'Payment Methods', screen: 'PaymentMethods' },
             ],
@@ -108,8 +127,6 @@ export default function ProfileScreen({ navigation }: any) {
             title: 'Preferences',
             items: [
                 { icon: 'notifications-outline' as const, label: 'Push Notifications', toggle: true as const },
-                { icon: 'moon-outline' as const, label: 'Dark Mode', info: 'Enabled' },
-                { icon: 'globe-outline' as const, label: 'Language', info: 'English' },
             ],
         },
         {

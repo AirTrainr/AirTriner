@@ -630,14 +630,11 @@ export default function TrainingOffersScreen({ navigation }: any) {
             const maxAthletes = form.max_athletes.trim() ? parseInt(form.max_athletes, 10) : null;
             const { error } = await supabase.from('training_offers').insert({
                 trainer_id: trainerProfile.id,
-                title: form.title.trim(),
-                description: form.description.trim() || null,
+                message: form.title.trim(),
                 price: parseFloat(form.price),
                 sport: form.sport.trim() || null,
-                duration_minutes: parseInt(form.duration_minutes, 10),
-                max_athletes: maxAthletes,
-                athlete_count: 0,
-                is_active: true,
+                session_length_min: parseInt(form.duration_minutes, 10),
+                status: 'pending',
             });
             if (error) throw error;
             setShowModal(false);
