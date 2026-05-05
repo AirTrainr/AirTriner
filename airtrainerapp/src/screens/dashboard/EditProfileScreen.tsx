@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { uploadToCloudinary } from '../../lib/cloudinary';
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -258,22 +259,13 @@ export default function EditProfileScreen({ navigation }: any) {
             setAvatarLoading(true);
             try {
                 const asset = result.assets[0];
-                const fileName = `avatars/${user!.id}_${Date.now()}.jpg`;
+                const fileName = `avatar_${user!.id}_${Date.now()}.jpg`;
 
-                const response = await fetch(asset.uri);
-                const blob = await response.blob();
-
-                const { error: uploadError } = await supabase.storage
-                    .from('avatars')
-                    .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
-
-                if (uploadError) {
-                    Alert.alert('Upload Failed', uploadError.message);
-                    setAvatarLoading(false);
-                    return;
-                }
-
-                const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+                const { url: publicUrl } = await uploadToCloudinary(
+                    asset.uri,
+                    'airtrainer/avatars',
+                    fileName,
+                );
 
                 if (isTrainer) {
                     // Trainers: a new profile photo re-triggers admin verification.
@@ -339,22 +331,13 @@ export default function EditProfileScreen({ navigation }: any) {
                     setBannerLoading(false);
                     return;
                 }
-                const fileName = `banners/${user!.id}_${Date.now()}.jpg`;
+                const fileName = `banner_${user!.id}_${Date.now()}.jpg`;
 
-                const response = await fetch(asset.uri);
-                const blob = await response.blob();
-
-                const { error: uploadError } = await supabase.storage
-                    .from('avatars')
-                    .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
-
-                if (uploadError) {
-                    Alert.alert('Upload Failed', uploadError.message);
-                    setBannerLoading(false);
-                    return;
-                }
-
-                const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+                const { url: publicUrl } = await uploadToCloudinary(
+                    asset.uri,
+                    'airtrainer/banners',
+                    fileName,
+                );
 
                 const { error: updateError } = await supabase
                     .from('trainer_profiles')
