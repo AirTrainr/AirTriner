@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { uploadDocumentToCloudinary } from '../../lib/cloudinary';
 import { TrainerProfileRow } from '../../lib/supabase';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import { ScreenWrapper, ScreenHeader, Card, Badge, LoadingScreen, Button } from '../../components/ui';
@@ -251,7 +252,7 @@ export default function VerificationScreen({ navigation }: any) {
         if (!user) return;
         try {
             const result = await DocumentPicker.getDocumentAsync({
-                type: ['application/pdf', 'image/*'],
+                type: ['application/pdf'],
                 copyToCacheDirectory: true,
             });
 
@@ -259,32 +260,19 @@ export default function VerificationScreen({ navigation }: any) {
 
             setUploading(true);
             const file = result.assets[0];
-            const fileName = `verification/${user.id}/${Date.now()}_${file.name}`;
+            const mimeType = file.mimeType || 'application/pdf';
 
-            const response = await fetch(file.uri);
-            const blob = await response.blob();
-
-            const { error: uploadError } = await supabase.storage
-                .from('verification-docs')
-                .upload(fileName, blob, {
-                    contentType: file.mimeType || 'application/pdf',
-                    upsert: false,
-                });
-
-            if (uploadError) {
-                Alert.alert('Upload Failed', uploadError.message);
-                setUploading(false);
-                return;
-            }
-
-            const {
-                data: { publicUrl },
-            } = supabase.storage.from('verification-docs').getPublicUrl(fileName);
+            const { url } = await uploadDocumentToCloudinary(
+                file.uri,
+                `verification/${user.id}`,
+                file.name,
+                mimeType,
+            );
 
             const currentDocs = documents || [];
             const newDoc: VerificationDocument = {
                 name: file.name,
-                url: publicUrl,
+                url,
                 uploadedAt: new Date().toISOString(),
             };
             const updatedDocs = [...currentDocs, newDoc];
