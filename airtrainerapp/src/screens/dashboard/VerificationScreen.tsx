@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -191,7 +192,12 @@ export default function VerificationScreen({ navigation }: any) {
                 .single();
             if (error) throw error;
             setProfile(data as TrainerProfileRow);
-            setDocuments((data as any)?.verification_documents || []);
+            const rawDocs = (data as any)?.verification_documents || [];
+            setDocuments(rawDocs.map((item: any, idx: number) =>
+                typeof item === 'string'
+                    ? { name: `Document ${idx + 1}`, url: item, uploadedAt: new Date().toISOString() }
+                    : item
+            ));
         } catch (err) {
             console.error('Error fetching trainer profile:', err);
         } finally {
@@ -199,11 +205,11 @@ export default function VerificationScreen({ navigation }: any) {
         }
     }, [user]);
 
-    useEffect(() => {
-        if (!profile) {
+    useFocusEffect(
+        useCallback(() => {
             fetchProfile();
-        }
-    }, [fetchProfile, profile]);
+        }, [fetchProfile])
+    );
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -277,10 +283,12 @@ export default function VerificationScreen({ navigation }: any) {
             };
             const updatedDocs = [...currentDocs, newDoc];
 
-            await supabase
+            const { error: saveError } = await supabase
                 .from('trainer_profiles')
-                .update({ verification_documents: updatedDocs })
+                .update({ verification_documents: updatedDocs.map(d => d.url) })
                 .eq('user_id', user.id);
+
+            if (saveError) throw saveError;
 
             setDocuments(updatedDocs);
             Alert.alert('Uploaded', 'Document uploaded successfully.');
@@ -302,7 +310,7 @@ export default function VerificationScreen({ navigation }: any) {
                     const updatedDocs = documents.filter((_, i) => i !== index);
                     await supabase
                         .from('trainer_profiles')
-                        .update({ verification_documents: updatedDocs })
+                        .update({ verification_documents: updatedDocs.map(d => d.url) })
                         .eq('user_id', user.id);
                     setDocuments(updatedDocs);
                 },
@@ -402,7 +410,7 @@ export default function VerificationScreen({ navigation }: any) {
             <Card style={styles.documentsCard}>
                 <Text style={styles.documentsTitle}>Verification Documents</Text>
                 <Text style={styles.documentsSubtitle}>
-                    Upload certificates, IDs, or other supporting documents (PDF or images).
+                    Upload certificates, IDs, or other supporting documents (PDF only).
                 </Text>
 
                 {documents.length > 0 && (
