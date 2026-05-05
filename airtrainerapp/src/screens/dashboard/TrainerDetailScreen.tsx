@@ -45,9 +45,16 @@ const formatDurationLabel = (mins: number): string => {
 type SubAccount = {
     id: string;
     parent_user_id: string;
-    first_name: string;
-    last_name: string;
-    avatar_url?: string | null;
+    is_active: boolean;
+    profile_data: {
+        first_name: string;
+        last_name: string;
+        date_of_birth?: string;
+        sports?: string[];
+        skill_level?: string;
+        notes?: string;
+        [key: string]: any;
+    };
     [key: string]: any;
 };
 
@@ -410,7 +417,8 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
             const { data } = await supabase
                 .from('sub_accounts')
                 .select('*')
-                .eq('parent_user_id', user.id);
+                .eq('parent_user_id', user.id)
+                .eq('is_active', true);
             setSubAccounts((data || []) as SubAccount[]);
         } catch {
             setSubAccounts([]);
@@ -630,7 +638,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
 
             if (booking) {
                 const bookingForLabel = selectedSubAccount
-                    ? `${selectedSubAccount.first_name}`
+                    ? `${selectedSubAccount.profile_data.first_name}`
                     : 'myself';
 
                 const notesPart = bookingNotes.trim() ? `\n\nNotes: ${bookingNotes.trim()}` : '';
@@ -1451,7 +1459,7 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                     </View>
                                     <Text style={styles.subAccountSelectorText}>
                                         {selectedSubAccount
-                                            ? `${selectedSubAccount.first_name} ${selectedSubAccount.last_name}`
+                                            ? `${selectedSubAccount.profile_data.first_name} ${selectedSubAccount.profile_data.last_name}`
                                             : 'Myself'}
                                     </Text>
                                 </View>
@@ -1502,14 +1510,14 @@ export default function TrainerDetailScreen({ route, navigation }: any) {
                                         >
                                             <View style={styles.subAccountAvatar}>
                                                 <Text style={styles.subAccountAvatarText}>
-                                                    {(acc.first_name?.[0] || '') + (acc.last_name?.[0] || '')}
+                                                    {(acc.profile_data.first_name?.[0] || '') + (acc.profile_data.last_name?.[0] || '')}
                                                 </Text>
                                             </View>
                                             <Text style={[
                                                 styles.subAccountOptionText,
                                                 selectedSubAccount?.id === acc.id && styles.subAccountOptionTextActive,
                                             ]}>
-                                                {acc.first_name} {acc.last_name}
+                                                {acc.profile_data.first_name} {acc.profile_data.last_name}
                                             </Text>
                                             {selectedSubAccount?.id === acc.id && (
                                                 <Ionicons name="checkmark" size={16} color={Colors.primary} />
