@@ -135,8 +135,14 @@ function TabNavigator() {
                 table: 'notifications',
                 filter: `user_id=eq.${user.id}`,
             }, () => {
-                // Re-fetch count when a notification is marked as read
                 fetchUnreadNotificationCount();
+            })
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'messages',
+            }, () => {
+                fetchUnreadCount();
             })
             .subscribe();
 
@@ -255,7 +261,7 @@ function TabNavigator() {
                 name="Messages"
                 component={MessagesScreen}
                 options={{ tabBarLabel: 'Messages' }}
-                listeners={{ tabPress: handleMessagesTabFocus }}
+                listeners={{ tabPress: handleMessagesTabFocus, focus: handleMessagesTabFocus }}
             />
             <Tab.Screen
                 name="Profile"
