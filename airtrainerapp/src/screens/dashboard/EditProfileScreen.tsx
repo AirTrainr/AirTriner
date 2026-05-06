@@ -656,6 +656,10 @@ export default function EditProfileScreen({ navigation }: any) {
                     <View style={styles.cameraOverlay}>
                         <Ionicons name="camera" size={16} color="#fff" />
                     </View>
+                    {/* Add Photo label when no avatar */}
+                    {!avatarUrl && (
+                        <Text style={styles.addPhotoLabel}>Add Photo</Text>
+                    )}
                     {/* Loading overlay */}
                     {avatarLoading && (
                         <View style={styles.avatarLoadingOverlay}>
@@ -1148,6 +1152,12 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: Colors.background,
         ...Shadows.small,
+    },
+    addPhotoLabel: {
+        marginTop: 6,
+        fontSize: FontSize.sm,
+        color: Colors.primary,
+        fontWeight: FontWeight.medium,
     },
     avatarLoadingOverlay: {
         ...StyleSheet.absoluteFillObject,

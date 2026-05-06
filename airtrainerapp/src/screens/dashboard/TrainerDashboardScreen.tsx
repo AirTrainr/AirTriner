@@ -421,7 +421,8 @@ export default function TrainerDashboardScreen({ navigation }: any) {
                 )}
             </Animated.View>
 
-            {/* ─── 5. QUICK ACTIONS (2x2) ─── */}
+            {/* ─── 5. QUICK ACTIONS (2x2) — hidden for admin ─── */}
+            {user?.role !== 'admin' && (
             <Animated.View entering={FadeInDown.duration(250).delay(450)} style={styles.section}>
                 <SectionHeader title="Quick Actions" />
                 <View style={styles.actionsGrid}>
@@ -440,8 +441,10 @@ export default function TrainerDashboardScreen({ navigation }: any) {
                     ))}
                 </View>
             </Animated.View>
+            )}
 
-            {/* ─── 6. PERFORMANCE INSIGHT ─── */}
+            {/* ─── 6. PERFORMANCE INSIGHT — hidden for admin ─── */}
+            {user?.role !== 'admin' && (
             <Animated.View entering={FadeInDown.duration(250).delay(550)} style={styles.section}>
                 <Card variant="elevated">
                     <View style={styles.insightRow}>
@@ -461,6 +464,7 @@ export default function TrainerDashboardScreen({ navigation }: any) {
                     </Pressable>
                 </Card>
             </Animated.View>
+            )}
 
         </ScreenWrapper>
     );

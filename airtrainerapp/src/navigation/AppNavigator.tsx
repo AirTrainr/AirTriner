@@ -230,13 +230,7 @@ function TabNavigator() {
                         component={TrainerDashboardScreen}
                         options={{ tabBarLabel: 'Dashboard' }}
                     />
-                    {user?.role === 'admin' && (
-                        <Tab.Screen
-                            name="Discover"
-                            component={DiscoverScreen}
-                            options={{ tabBarLabel: 'Discover' }}
-                        />
-                    )}
+                    {/* Bug #22: Admin must NOT access athlete-only Discover tab */}
                 </>
             ) : (
                 <>

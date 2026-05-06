@@ -102,9 +102,14 @@ export default function SubscriptionScreen({ navigation }: any) {
                     'id, subscription_status, subscription_expires_at, trial_started_at, is_founding_50, is_verified, verification_status, reliability_score'
                 )
                 .eq('user_id', user.id)
-                .single();
+                .maybeSingle();
 
             if (error) throw error;
+            if (!data) {
+                // Admin or user without a trainer profile — show empty state gracefully
+                setProfile(null);
+                return;
+            }
             const profileData = data as ProfileData;
             setProfile(profileData);
             setF50Applied(!!profileData.is_founding_50 && profileData.subscription_status !== 'active');

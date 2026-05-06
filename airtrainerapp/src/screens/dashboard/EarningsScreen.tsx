@@ -216,7 +216,13 @@ export default function EarningsScreen({ navigation }: any) {
     const months = Array.from(monthlyDataMap.entries());
 
     // --- CSV Export ---
+    const hasExportData = isTrainer ? completedBookings.length > 0 : athleteTransactions.length > 0;
+
     const handleExportCSV = async () => {
+        if (!hasExportData) {
+            Alert.alert('Nothing to export', 'Complete a session first to have data to export.');
+            return;
+        }
         try {
             let csvContent: string;
             let filename: string;
@@ -289,7 +295,7 @@ export default function EarningsScreen({ navigation }: any) {
             <ScreenHeader
                 title={isTrainer ? 'Earnings' : 'Payments'}
                 onBack={() => navigation.goBack()}
-                rightAction={{ icon: 'download-outline', onPress: handleExportCSV }}
+                rightAction={hasExportData ? { icon: 'download-outline', onPress: handleExportCSV } : undefined}
             />
 
             {/* Summary cards */}

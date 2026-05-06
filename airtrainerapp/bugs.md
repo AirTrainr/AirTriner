@@ -46,6 +46,10 @@ This document tracks all known bugs identified in the AirTrainr mobile applicati
 | #16 | Training History Screen Empty Despite Existing Records | Trainer | High | 🟢 Fixed |
 | #17 | Verification Document Upload Fails / PDF-Only Restriction | Trainer | High | 🟢 Fixed |
 | #18 | Notification Badge Showing on Trainer Profile Tab | Trainer | Medium | 🟢 Fixed |
+| #19 | Quick Actions & Performance Insight Redundant on Admin Dashboard | Admin | Low | 🟢 Fixed |
+| #20 | Subscription Page Fails to Load for Admin | Admin | Medium | 🟢 Fixed |
+| #21 | Payments Download Icon Active With No Data + Plain Text Export | Admin | Medium | 🟢 Fixed |
+| #22 | Admin Can Access Discover Page and Book Trainers (Role Violation) | Admin | High | 🟢 Fixed |
 
 ---
 
@@ -263,6 +267,54 @@ This document tracks all known bugs identified in the AirTrainr mobile applicati
 - **Symptom:** The unread notifications badge appeared on the Profile tab for trainers, even though trainers manage notifications from the Trainer Dashboard bell icon, not the Profile tab.
 - **Root Cause:** The badge render condition in `AppNavigator.tsx` was missing a `!isTrainer` guard, so it showed for both athletes and trainers.
 - **Fix:** Added `!isTrainer` to the Profile tab badge condition so the badge only renders for athlete accounts.
+- **File:** `src/navigation/AppNavigator.tsx`
+- **Status:** 🟢 Fixed
+
+---
+
+### BUG #19 — Quick Actions & Performance Insight Redundant on Admin Dashboard
+
+- **Portal:** Admin
+- **Screen:** Trainer Dashboard Screen (used by admin via `isTrainer` fallback)
+- **Symptom:** The Quick Actions (2x2 grid linking to Availability, Offers, Earnings, Reviews) and Performance Insight (motivational card) sections are redundant for admin users — these destinations are already in the side menu and are trainer-specific, not admin-relevant.
+- **Root Cause:** The admin uses `TrainerDashboardScreen` (since `isTrainer = role === 'trainer' || role === 'admin'`) but both sections render unconditionally regardless of role.
+- **Fix:** Wrapped both sections in `{user?.role !== 'admin' && (...)}` conditionals so they are hidden for admin users.
+- **File:** `src/screens/dashboard/TrainerDashboardScreen.tsx`
+- **Status:** 🟢 Fixed
+
+---
+
+### BUG #20 — Subscription Page Fails to Load for Admin
+
+- **Portal:** Admin
+- **Screen:** Subscription Screen
+- **Symptom:** Opening the Subscription screen as an admin shows "Error — Could not load subscription details." alert immediately.
+- **Root Cause:** The `fetchProfile` query uses `.single()` on `trainer_profiles` filtered by `user_id`. Admin accounts do not have a `trainer_profiles` row, so `.single()` throws a "no rows returned" error.
+- **Fix:** Changed `.single()` to `.maybeSingle()` and added a null-data guard that sets `profile` to `null` gracefully instead of throwing.
+- **File:** `src/screens/dashboard/SubscriptionScreen.tsx`
+- **Status:** 🟢 Fixed
+
+---
+
+### BUG #21 — Payments Download Icon Active With No Data + Plain Text Export
+
+- **Portal:** Admin
+- **Screen:** Earnings/Payments Screen
+- **Symptom:** The download icon in the header is active and tappable even when there is no payment data (Total Paid: $0.00, 0 payments). Tapping it previously produced plain text instead of a CSV file (fixed in Bug #13), but the button should not be available when there's nothing to export.
+- **Root Cause:** The `rightAction` prop on `ScreenHeader` was always set regardless of data availability. No guard checked whether `completedBookings` (trainer) or `athleteTransactions` (athlete) had any entries.
+- **Fix:** Added `hasExportData` boolean check. The download button is now hidden when there's no data (`rightAction` is `undefined`). Additionally, `handleExportCSV` itself shows an alert if called with no data as a safety fallback.
+- **File:** `src/screens/dashboard/EarningsScreen.tsx`
+- **Status:** 🟢 Fixed
+
+---
+
+### BUG #22 — Admin Can Access Discover Page and Book Trainers (Role Violation)
+
+- **Portal:** Admin
+- **Screen:** Bottom Tab Navigator → Discover tab
+- **Symptom:** The admin account sees a Discover tab in the bottom navigation, which is an athlete-only feature. The admin can browse trainers, view profiles, and initiate bookings — a role boundary violation.
+- **Root Cause:** `AppNavigator.tsx` explicitly added a `Discover` tab for `user?.role === 'admin'`, giving admins access to athlete-only functionality.
+- **Fix:** Removed the Discover tab for admin users entirely. Admins now only see Dashboard, Bookings, Messages, and Profile in the bottom tab bar.
 - **File:** `src/navigation/AppNavigator.tsx`
 - **Status:** 🟢 Fixed
 
