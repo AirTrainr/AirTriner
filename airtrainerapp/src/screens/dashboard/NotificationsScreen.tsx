@@ -268,13 +268,36 @@ export default function NotificationsScreen({ navigation }: any) {
                 goBookingDetail();
                 return;
 
-            // Messages → Chat needs bookingId + otherUser; we only reliably
-            // have bookingId here, so fall back to BookingDetail (which
-            // surfaces the chat) when bookingId exists, else Messages list.
             case 'MESSAGE_RECEIVED':
             case 'NEW_MESSAGE':
-                if (bookingId) goBookingDetail();
-                else navigation.navigate('Messages');
+                if (bookingId) {
+                    (async () => {
+                        const { data: booking } = await supabase
+                            .from('bookings')
+                            .select('athlete_id, trainer_id, sport')
+                            .eq('id', bookingId)
+                            .single();
+
+                        if (!booking) { navigation.navigate('Messages'); return; }
+
+                        const isAthlete = user?.id === booking.athlete_id;
+                        const otherUserId = isAthlete ? booking.trainer_id : booking.athlete_id;
+
+                        const [{ data: otherUserData }, { data: allBookings }] = await Promise.all([
+                            supabase.from('users').select('id, first_name, last_name').eq('id', otherUserId).single(),
+                            supabase.from('bookings').select('id').eq('athlete_id', booking.athlete_id).eq('trainer_id', booking.trainer_id).neq('status', 'cancelled'),
+                        ]);
+
+                        navigation.navigate('Chat', {
+                            bookingId,
+                            allBookingIds: allBookings?.map((b: any) => b.id) || [bookingId],
+                            otherUser: otherUserData || { id: otherUserId, first_name: '', last_name: '' },
+                            sport: booking.sport,
+                        });
+                    })();
+                } else {
+                    navigation.navigate('Messages');
+                }
                 return;
 
             // Reviews — request or received
