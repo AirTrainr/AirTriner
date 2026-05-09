@@ -25,6 +25,8 @@ interface Props {
     trainers: TrainerPin[];
     centerLat?: number;
     centerLng?: number;
+    athleteLat?: number | null;
+    athleteLng?: number | null;
     onTrainerPress?: (userId: string) => void;
 }
 
@@ -32,6 +34,8 @@ export default function TrainerMapView({
     trainers,
     centerLat = 39.8,
     centerLng = -98.5,
+    athleteLat,
+    athleteLng,
     onTrainerPress,
 }: Props) {
     const mapRef = useRef<any>(null);
@@ -206,12 +210,20 @@ export default function TrainerMapView({
                     longitudeDelta: 30,
                 }}
                 customMapStyle={darkMapStyle}
-                showsUserLocation
+                showsUserLocation={false}
                 showsMyLocationButton={false}
                 onMapReady={() => {}}
                 onError={() => setMapError(true)}
             >
                 {validTrainers.map(renderMarker)}
+                {athleteLat && athleteLng && (
+                    <Marker
+                        coordinate={{ latitude: athleteLat, longitude: athleteLng }}
+                        title="You"
+                        description="Your location"
+                        pinColor="#00C853"
+                    />
+                )}
             </MapView>
 
             {/* Trainer count overlay */}

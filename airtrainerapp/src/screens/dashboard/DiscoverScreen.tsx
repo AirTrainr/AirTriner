@@ -1040,6 +1040,10 @@ export default function DiscoverScreen({ navigation }: any) {
                 <View style={styles.mapContainer}>
                     <TrainerMapView
                         trainers={trainerPins}
+                        centerLat={(user?.athleteProfile as any)?.latitude || 39.8}
+                        centerLng={(user?.athleteProfile as any)?.longitude || -98.5}
+                        athleteLat={(user?.athleteProfile as any)?.latitude}
+                        athleteLng={(user?.athleteProfile as any)?.longitude}
                         onTrainerPress={(userId) => {
                             const found = filteredTrainers.find((t) => t.user_id === userId);
                             if (found) {
@@ -1057,23 +1061,8 @@ export default function DiscoverScreen({ navigation }: any) {
             <View style={styles.fabContainer}>
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={async () => {
-                        if (viewMode === 'list') {
-                            if (Platform.OS === 'android') {
-                                const { status } = await Location.requestForegroundPermissionsAsync();
-                                if (status !== 'granted') {
-                                    Alert.alert(
-                                        'Location Required',
-                                        'Please grant location permission to use the map view.',
-                                        [{ text: 'OK' }]
-                                    );
-                                    return;
-                                }
-                            }
-                            setViewMode('map');
-                        } else {
-                            setViewMode('list');
-                        }
+                    onPress={() => {
+                        setViewMode(viewMode === 'list' ? 'map' : 'list');
                     }}
                     activeOpacity={0.85}
                 >
