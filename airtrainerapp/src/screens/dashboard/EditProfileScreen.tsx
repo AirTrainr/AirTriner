@@ -35,7 +35,7 @@ const TRAINING_TYPES = [
     { key: 'pre_season', label: 'Pre-Season' },
     { key: 'in_season', label: 'In-Season' },
 ];
-const TRAINING_TIMES = ['Morning', 'Afternoon', 'Evening'];
+const TRAINING_TIMES = ['morning', 'afternoon', 'evening'];
 const SEX_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
 type SessionPricingState = Record<`${AllowedDuration}`, { price: string; enabled: boolean }>;
@@ -165,7 +165,9 @@ export default function EditProfileScreen({ navigation }: any) {
     const [headline, setHeadline] = useState(tp?.headline || '');
     const [bio, setBio] = useState(tp?.bio || '');
     const [yearsExp, setYearsExp] = useState(String(tp?.years_experience || '0'));
-    const [selectedSports, setSelectedSports] = useState<string[]>(tp?.sports || []);
+    const [selectedSports, setSelectedSports] = useState<string[]>(
+        isTrainer ? (tp?.sports || []) : (user?.athleteProfile?.sports || [])
+    );
     const [selectedTrainingTypes, setSelectedTrainingTypes] = useState<string[]>((tp as any)?.trainingTypes || []);
     const [city, setCity] = useState(tp?.city || user?.athleteProfile?.city || '');
     const [stateVal, setStateVal] = useState(tp?.state || user?.athleteProfile?.state || '');
@@ -191,7 +193,7 @@ export default function EditProfileScreen({ navigation }: any) {
     });
     const [locationLoading, setLocationLoading] = useState(false);
     const [selectedTrainingTimes, setSelectedTrainingTimes] = useState<string[]>(
-        user?.athleteProfile?.preferredTrainingTimes || []
+        (user?.athleteProfile?.preferredTrainingTimes || []).map((t: string) => t.toLowerCase())
     );
     const [phone, setPhone] = useState((user as any)?.phone || '');
     const [dateOfBirth, setDateOfBirth] = useState((user as any)?.dateOfBirth || '');
@@ -1034,7 +1036,7 @@ export default function EditProfileScreen({ navigation }: any) {
                     {TRAINING_TIMES.map((time) => (
                         <Chip
                             key={time}
-                            label={time}
+                            label={time.charAt(0).toUpperCase() + time.slice(1)}
                             active={selectedTrainingTimes.includes(time)}
                             onPress={() => toggleTrainingTime(time)}
                         />
