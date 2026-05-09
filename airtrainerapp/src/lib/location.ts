@@ -113,7 +113,7 @@ export class GooglePlacesProvider {
             return {
                 city: findComponent('locality') || findComponent('sublocality') || findComponent('administrative_area_level_2'),
                 state: findComponent('administrative_area_level_1', true),
-                country: findComponent('country'),
+                country: findComponent('country', true),
                 lat: data.result.geometry.location.lat,
                 lng: data.result.geometry.location.lng,
                 formattedAddress: data.result.formatted_address || '',

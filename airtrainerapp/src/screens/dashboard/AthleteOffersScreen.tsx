@@ -221,27 +221,32 @@ export default function AthleteOffersScreen({ navigation }: any) {
     };
 
     const handleViewBooking = async (offer: OfferRow) => {
+        setModalVisible(false);
         try {
-            const { data } = await supabase
-                .from('notifications')
-                .select('data')
-                .eq('user_id', user?.id)
-                .contains('data', { offer_id: offer.id })
+            let query = supabase
+                .from('bookings')
+                .select('id')
+                .eq('athlete_id', offer.athlete_id)
+                .eq('trainer_id', offer.trainer_id)
+                .neq('status', 'cancelled')
                 .order('created_at', { ascending: false })
-                .limit(20);
+                .limit(1);
 
-            const bookingId = (data || [])
-                .map((n: any) => (n.data?.booking_id || n.data?.bookingId))
-                .find((id: any) => Boolean(id));
+            if (offer.sport) query = query.eq('sport', offer.sport);
+            if (offer.price != null) query = query.eq('price', offer.price);
 
-            setModalVisible(false);
-            if (bookingId) {
-                navigation.navigate('BookingDetail', { bookingId });
+            const proposedAt = getProposedAt(offer);
+            if (proposedAt) query = query.eq('scheduled_at', proposedAt);
+
+            const { data } = await query.single();
+
+            if (data?.id) {
+                navigation.navigate('BookingDetail', { bookingId: data.id });
             } else {
-                navigation.navigate('Bookings');
+                Alert.alert('Booking Not Found', 'Could not find the booking for this offer.');
             }
         } catch {
-            navigation.navigate('Bookings');
+            Alert.alert('Error', 'Could not load booking details.');
         }
     };
 

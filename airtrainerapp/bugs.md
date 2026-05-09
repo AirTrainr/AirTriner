@@ -42,7 +42,7 @@ This document tracks all known bugs identified in the AirTrainr mobile applicati
 | #12 | Trainer Dashboard Notification Bell Dot Always Visible | Trainer | Medium | 🟢 Fixed |
 | #13 | Earnings Export Downloads Plain Text Instead of CSV File | Trainer | Medium | 🟢 Fixed |
 | #14 | Certifications Screen Crashes on Navigation | Trainer | High | 🟢 Fixed |
-| #15 | Training Offer Creation Fails — Schema Mismatch | Trainer | High | 🟡 In Progress |
+| #15 | Training Offer Creation Fails — Schema Mismatch | Trainer | High | 🟢 Fixed |
 | #16 | Training History Screen Empty Despite Existing Records | Trainer | High | 🟢 Fixed |
 | #17 | Verification Document Upload Fails / PDF-Only Restriction | Trainer | High | 🟢 Fixed |
 | #18 | Notification Badge Showing on Trainer Profile Tab | Trainer | Medium | 🟢 Fixed |
@@ -229,10 +229,9 @@ This document tracks all known bugs identified in the AirTrainr mobile applicati
 - **Screen:** Training Offers Screen → My Packages → Create Offer
 - **Symptom:** Tapping "Save" on the Create Offer form throws schema cache errors and the offer is never saved.
 - **Root Cause:** The Create Offer INSERT payload included multiple columns that do not exist in the `training_offers` table: `athlete_count`, `description`, `duration_minutes`, `is_active`, `max_athletes`, and `title`. Additionally, `athlete_id` is `NOT NULL` in the DB but the create-package flow has no specific athlete to target.
-- **Fix (App — Done):** Removed all non-existent columns from the INSERT. Mapped `title` → `message`, `duration_minutes` → `session_length_min`, `is_active` → `status: 'pending'`. Migration file created at `apps/web/supabase/migrations/20260505000000_training_offers_nullable_athlete_id.sql` to make `athlete_id` nullable.
-- **Fix (DB — Pending):** Senior dev needs to apply the migration (`ALTER TABLE training_offers ALTER COLUMN athlete_id DROP NOT NULL`) to allow package offers without a specific athlete.
+- **Fix:** Two-part fix. (1) DB: Applied migration `20260505000000_training_offers_nullable_athlete_id.sql` to make `athlete_id` nullable so package offers don't require a target athlete. (2) App: Fixed the INSERT payload — mapped `title` → `message`, `duration_minutes` → `session_length_min`; added `is_active: true`, `athlete_count: 0`, and `max_athletes` (was computed but never included). The `is_active` NOT NULL column without a default was the root cause of the remaining 409 after the migration was applied.
 - **Files:** `src/screens/dashboard/TrainingOffersScreen.tsx`, `apps/web/supabase/migrations/20260505000000_training_offers_nullable_athlete_id.sql`
-- **Status:** 🟡 In Progress
+- **Status:** 🟢 Fixed
 
 ---
 
@@ -252,9 +251,18 @@ This document tracks all known bugs identified in the AirTrainr mobile applicati
 
 - **Portal:** Trainer
 - **Screen:** Verification Screen → Upload Document
-- **Symptom:** Document upload was using Supabase Storage (which has no bucket configured). Additionally, images were allowed in the picker despite only PDFs being needed for verification.
-- **Root Cause:** Upload logic used Supabase Storage instead of Cloudinary. The `DocumentPicker` accepted both `image/*` and `application/pdf`.
-- **Fix:** Replaced Supabase Storage upload with `uploadDocumentToCloudinary()` using resource type `raw` for PDFs. Added `uploadDocumentToCloudinary` helper in `src/lib/cloudinary.ts`. Restricted `DocumentPicker` to `application/pdf` only. The Cloudinary upload preset (`airtrainr`) needs to have Raw resource type enabled via the Cloudinary dashboard for PDF uploads to resolve correctly on the web.
+- **Symptom:** PDF upload failed with a Cloudinary error. After upload, documents disappeared on navigating away and returning to the screen. "Invalid Date" shown after page reload. UI text incorrectly said "PDF or images".
+- **Root Cause (4 issues):**
+  1. `uploadDocumentToCloudinary` used `resource_type: raw` for PDFs — Cloudinary's `/image/upload` endpoint natively supports PDFs without needing `raw`.
+  2. Mobile app saved `{name, url, uploadedAt}` objects to `verification_documents` (`text[]` column) — type mismatch causing silent DB save failures. Web app correctly saves plain URL strings.
+  3. No error check on DB save — failures were silent, UI showed the document but it was never persisted.
+  4. `useEffect` only fetched profile if `profile` was null. Since profile persists in context, navigating away and back skipped the fetch, leaving `documents` state as empty `[]`.
+- **Fix:**
+  1. Changed `resourceType` from `'raw'` to `'image'` in `uploadDocumentToCloudinary`.
+  2. Changed DB save to `updatedDocs.map(d => d.url)` — saves URL strings matching web app format. On load, URL strings are converted to local `VerificationDocument` objects for display.
+  3. Added `if (saveError) throw saveError` after DB update so errors surface to the user.
+  4. Replaced `useEffect` with `useFocusEffect` so profile (and documents) refetch every time the screen comes into focus.
+  5. Changed UI subtitle from "PDF or images" to "PDF only".
 - **Files:** `src/screens/dashboard/VerificationScreen.tsx`, `src/lib/cloudinary.ts`
 - **Status:** 🟢 Fixed
 

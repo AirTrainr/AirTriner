@@ -72,14 +72,15 @@ function TabNavigator() {
         setUnreadMessages(count);
     }, [user]);
 
-    // Fetch unread notification count
+    // Fetch unread notification count (exclude message notifications — those show on Messages tab)
     const fetchUnreadNotificationCount = useCallback(async () => {
         if (!user) return;
         const { count } = await supabase
             .from('notifications')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id)
-            .eq('read', false);
+            .eq('read', false)
+            .not('type', 'in', '("MESSAGE_RECEIVED","NEW_MESSAGE")');
         setUnreadNotifications(count ?? 0);
     }, [user]);
 
@@ -120,7 +121,8 @@ function TabNavigator() {
                 filter: `user_id=eq.${user.id}`,
             }, (payload) => {
                 const notif = payload.new as any;
-                // Increment unread notification badge
+                // Skip message notifications — already counted in Messages tab badge
+                if (notif.type === 'MESSAGE_RECEIVED' || notif.type === 'NEW_MESSAGE') return;
                 setUnreadNotifications((prev) => prev + 1);
                 // Show local push notification for in-app notifications
                 sendLocalNotification({

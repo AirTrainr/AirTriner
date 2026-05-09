@@ -212,7 +212,8 @@ export async function getUnreadMessageCount(userId: string): Promise<number> {
         const { data: bookings } = await supabase
             .from('bookings')
             .select('id')
-            .or(`athlete_id.eq.${userId},trainer_id.eq.${userId}`);
+            .or(`athlete_id.eq.${userId},trainer_id.eq.${userId}`)
+            .in('status', ['pending', 'confirmed', 'completed']);
 
         if (!bookings || bookings.length === 0) return 0;
 

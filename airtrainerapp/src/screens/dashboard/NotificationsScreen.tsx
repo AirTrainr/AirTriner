@@ -268,13 +268,36 @@ export default function NotificationsScreen({ navigation }: any) {
                 goBookingDetail();
                 return;
 
-            // Messages → Chat needs bookingId + otherUser; we only reliably
-            // have bookingId here, so fall back to BookingDetail (which
-            // surfaces the chat) when bookingId exists, else Messages list.
             case 'MESSAGE_RECEIVED':
             case 'NEW_MESSAGE':
-                if (bookingId) goBookingDetail();
-                else navigation.navigate('Messages');
+                if (bookingId) {
+                    (async () => {
+                        const { data: booking } = await supabase
+                            .from('bookings')
+                            .select('athlete_id, trainer_id, sport')
+                            .eq('id', bookingId)
+                            .single();
+
+                        if (!booking) { navigation.navigate('Messages'); return; }
+
+                        const isAthlete = user?.id === booking.athlete_id;
+                        const otherUserId = isAthlete ? booking.trainer_id : booking.athlete_id;
+
+                        const [{ data: otherUserData }, { data: allBookings }] = await Promise.all([
+                            supabase.from('users').select('id, first_name, last_name').eq('id', otherUserId).single(),
+                            supabase.from('bookings').select('id').eq('athlete_id', booking.athlete_id).eq('trainer_id', booking.trainer_id).neq('status', 'cancelled'),
+                        ]);
+
+                        navigation.navigate('Chat', {
+                            bookingId,
+                            allBookingIds: allBookings?.map((b: any) => b.id) || [bookingId],
+                            otherUser: otherUserData || { id: otherUserId, first_name: '', last_name: '' },
+                            sport: booking.sport,
+                        });
+                    })();
+                } else {
+                    navigation.navigate('Messages');
+                }
                 return;
 
             // Reviews — request or received
@@ -472,7 +495,7 @@ export default function NotificationsScreen({ navigation }: any) {
         const config = NOTIF_ICONS[item.type] || { icon: 'notifications', color: Colors.textSecondary, bg: Colors.surface };
 
         return (
-            <Animated.View key={item.id} entering={FadeInDown.duration(200).delay(index * 25)}>
+            <View key={item.id}>
                 <Pressable
                     style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
                     onPress={() => handleNotificationPress(item)}
@@ -481,7 +504,9 @@ export default function NotificationsScreen({ navigation }: any) {
                     <Card
                         style={{
                             ...styles.notifCard,
-                            ...(!item.read ? styles.notifCardUnread : {}),
+                            borderLeftWidth: 3,
+                            borderLeftColor: item.read ? 'transparent' : Colors.primary,
+                            backgroundColor: item.read ? Colors.surface : Colors.primaryMuted,
                         }}
                     >
                         <View style={styles.notifRow}>
@@ -516,7 +541,7 @@ export default function NotificationsScreen({ navigation }: any) {
                         </View>
                     </Card>
                 </Pressable>
-            </Animated.View>
+            </View>
         );
     };
 

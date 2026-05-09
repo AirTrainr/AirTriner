@@ -1040,6 +1040,10 @@ export default function DiscoverScreen({ navigation }: any) {
                 <View style={styles.mapContainer}>
                     <TrainerMapView
                         trainers={trainerPins}
+                        centerLat={(user?.athleteProfile as any)?.latitude || 39.8}
+                        centerLng={(user?.athleteProfile as any)?.longitude || -98.5}
+                        athleteLat={(user?.athleteProfile as any)?.latitude}
+                        athleteLng={(user?.athleteProfile as any)?.longitude}
                         onTrainerPress={(userId) => {
                             const found = filteredTrainers.find((t) => t.user_id === userId);
                             if (found) {
@@ -1050,6 +1054,17 @@ export default function DiscoverScreen({ navigation }: any) {
                             }
                         }}
                     />
+                    {!(user?.athleteProfile as any)?.latitude && (
+                        <View style={styles.mapLocationBanner}>
+                            <Ionicons name="location-outline" size={14} color={Colors.warning} />
+                            <Text style={styles.mapLocationBannerText}>
+                                Add your location in Profile to see nearby trainers
+                            </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+                                <Text style={styles.mapLocationBannerLink}>Set →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             )}
 
@@ -1057,23 +1072,8 @@ export default function DiscoverScreen({ navigation }: any) {
             <View style={styles.fabContainer}>
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={async () => {
-                        if (viewMode === 'list') {
-                            if (Platform.OS === 'android') {
-                                const { status } = await Location.requestForegroundPermissionsAsync();
-                                if (status !== 'granted') {
-                                    Alert.alert(
-                                        'Location Required',
-                                        'Please grant location permission to use the map view.',
-                                        [{ text: 'OK' }]
-                                    );
-                                    return;
-                                }
-                            }
-                            setViewMode('map');
-                        } else {
-                            setViewMode('list');
-                        }
+                    onPress={() => {
+                        setViewMode(viewMode === 'list' ? 'map' : 'list');
                     }}
                     activeOpacity={0.85}
                 >
@@ -1550,6 +1550,31 @@ const styles = StyleSheet.create({
         flex: 1,
         marginHorizontal: Layout.screenPadding,
         marginBottom: Spacing.md,
+    },
+    mapLocationBanner: {
+        position: 'absolute',
+        bottom: Spacing.md,
+        left: Spacing.md,
+        right: Spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        backgroundColor: 'rgba(10,13,20,0.90)',
+        borderWidth: 1,
+        borderColor: Colors.warning,
+        borderRadius: BorderRadius.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+    },
+    mapLocationBannerText: {
+        flex: 1,
+        fontSize: FontSize.xs,
+        color: Colors.textSecondary,
+    },
+    mapLocationBannerLink: {
+        fontSize: FontSize.xs,
+        fontWeight: FontWeight.bold,
+        color: Colors.warning,
     },
 
     // ── Trainer List ──

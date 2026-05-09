@@ -49,7 +49,7 @@ export async function uploadDocumentToCloudinary(
     formData.append('upload_preset', UPLOAD_PRESET);
     formData.append('folder', folder);
 
-    const resourceType = mimeType === 'application/pdf' ? 'raw' : 'image';
+    const resourceType = 'image';
     const res = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
         { method: 'POST', body: formData }
