@@ -472,7 +472,7 @@ export default function NotificationsScreen({ navigation }: any) {
         const config = NOTIF_ICONS[item.type] || { icon: 'notifications', color: Colors.textSecondary, bg: Colors.surface };
 
         return (
-            <Animated.View key={item.id} entering={FadeInDown.duration(200).delay(index * 25)}>
+            <View key={item.id}>
                 <Pressable
                     style={({ pressed }) => [pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
                     onPress={() => handleNotificationPress(item)}
@@ -481,7 +481,9 @@ export default function NotificationsScreen({ navigation }: any) {
                     <Card
                         style={{
                             ...styles.notifCard,
-                            ...(!item.read ? styles.notifCardUnread : {}),
+                            borderLeftWidth: 3,
+                            borderLeftColor: item.read ? 'transparent' : Colors.primary,
+                            backgroundColor: item.read ? Colors.surface : Colors.primaryMuted,
                         }}
                     >
                         <View style={styles.notifRow}>
@@ -516,7 +518,7 @@ export default function NotificationsScreen({ navigation }: any) {
                         </View>
                     </Card>
                 </Pressable>
-            </Animated.View>
+            </View>
         );
     };
 
