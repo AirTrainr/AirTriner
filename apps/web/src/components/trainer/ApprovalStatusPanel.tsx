@@ -60,7 +60,7 @@ export default function ApprovalStatusPanel({ user, trainerProfile }: Props) {
             title: "Active subscription",
             explainer: subActive
                 ? subStatus === "trial"
-                    ? "You're on the 7-day trial. Upgrade anytime to keep your profile live."
+                    ? "You're on the 30-day trial. Upgrade anytime to keep your profile live."
                     : "Your subscription is active."
                 : "Start a subscription (or trial) to be discoverable by athletes.",
             cta: subActive ? null : (

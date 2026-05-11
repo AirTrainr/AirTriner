@@ -276,7 +276,7 @@ export default function Pricing() {
                                 marginBottom: "16px",
                             }}
                         >
-                            7-day free trial
+                            30-day free trial
                         </div>
 
                         <div

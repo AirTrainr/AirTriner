@@ -24,7 +24,7 @@ export default function HowItWorks() {
     const trainerSteps = [
         {
             title: "Create Your Trainer Profile",
-            desc: "Set up your profile and start with a 7-day free trial — then $25/month or $250/year. Keep 100% of your hourly rate.",
+            desc: "Set up your profile and start with a 30-day free trial — then $25/month or $250/year. Keep 100% of your hourly rate.",
             icon: <Briefcase className="w-5 h-5" />,
         },
         {

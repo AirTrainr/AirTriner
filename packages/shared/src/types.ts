@@ -405,7 +405,7 @@ export interface PaymentDetails {
 export const PLATFORM_FEE_PERCENTAGE = 0.03; // 3%
 export const MAX_SUB_ACCOUNTS = 6;
 export const TRAINER_SUBSCRIPTION_ANNUAL = 250_00; // $250 in cents
-export const TRAINER_TRIAL_DAYS = 7;
+export const TRAINER_TRIAL_DAYS = 30;
 export const DEFAULT_TRAVEL_RADIUS_MILES = 25;
 export const MAX_SEARCH_RADIUS_MILES = 100;
 export const HOLD_HOURS_NEW_TRAINER = 48;

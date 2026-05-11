@@ -5,7 +5,7 @@
 // ALL FOUR of these are true:
 //
 //   1. verification_status === 'verified'   (admin manually approved)
-//   2. subscription_status IN ('trial','active')  (paying or in 7-day trial)
+//   2. subscription_status IN ('trial','active')  (paying or in 30-day trial)
 //   3. profile completeness                  (mandatory fields filled)
 //   4. user is active                         (NOT suspended, NOT soft-deleted)
 //

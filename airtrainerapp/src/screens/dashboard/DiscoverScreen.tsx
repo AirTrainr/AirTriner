@@ -152,7 +152,7 @@ const calculateDistance = (
 };
 
 const normalizeSport = (s: string) =>
-    s.toLowerCase().replace(/\s+&\s+/g, '_and_').replace(/\s+/g, '_').replace(/[^a-z_]/g, '');
+    s.toLowerCase().replace(/\s+&\s+/g, '_and_').replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, '');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

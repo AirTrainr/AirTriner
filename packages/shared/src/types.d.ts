@@ -318,7 +318,7 @@ export interface PaymentDetails {
 export declare const PLATFORM_FEE_PERCENTAGE = 0.03;
 export declare const MAX_SUB_ACCOUNTS = 6;
 export declare const TRAINER_SUBSCRIPTION_ANNUAL = 25000;
-export declare const TRAINER_TRIAL_DAYS = 7;
+export declare const TRAINER_TRIAL_DAYS = 30;
 export declare const DEFAULT_TRAVEL_RADIUS_MILES = 25;
 export declare const MAX_SEARCH_RADIUS_MILES = 100;
 export declare const HOLD_HOURS_NEW_TRAINER = 48;

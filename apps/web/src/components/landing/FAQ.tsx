@@ -22,7 +22,7 @@ const FAQS = [
     },
     {
         q: "How much does it cost to use AirTrainr?",
-        a: "Athletes pay nothing to sign up — we add a small 3% platform fee at checkout. Trainers get a 7-day free trial, then $25/month or $250/year (saving $50). Trainers always keep 100% of their hourly rate.",
+        a: "Athletes pay nothing to sign up — we add a small 3% platform fee at checkout. Trainers get a 30-day free trial, then $25/month or $250/year (saving $50). Trainers always keep 100% of their hourly rate.",
     },
     {
         q: "What is the Founding 50 program?",

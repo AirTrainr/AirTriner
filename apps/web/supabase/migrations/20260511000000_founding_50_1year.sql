@@ -1,13 +1,4 @@
--- Founding 50 atomic grant RPC.
--- Postgres function bodies execute inside a single transaction, so the cap
--- check + update happen atomically — two concurrent calls can never both
--- promote the 50th and 51st trainer.
---
--- Returns a single row with status:
---   status = 'granted'        → trainer was promoted, current_count is post-update total
---   status = 'already'        → trainer was already founding_50 (no-op)
---   status = 'not_found'      → no trainer_profile for that user_id
---   status = 'cap_reached'    → 50 active founding_50 rows already exist
+-- Update Founding 50 grant RPC to give 1 year (365 days) instead of 6 months (180 days).
 CREATE OR REPLACE FUNCTION public.grant_founding_50(p_user_id uuid)
 RETURNS TABLE(status text, current_count integer, profile_id uuid)
 LANGUAGE plpgsql
@@ -19,7 +10,6 @@ DECLARE
     v_already boolean;
     v_count integer;
 BEGIN
-    -- Lock the trainer row first to serialise concurrent grants on the same trainer.
     SELECT id, is_founding_50
       INTO v_profile_id, v_already
       FROM trainer_profiles
@@ -37,10 +27,6 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Cap check inside the same transaction. Any other in-flight grant has
-    -- either committed (and bumped the count) or is still holding its row
-    -- lock — but the COUNT here sees only committed rows at this snapshot.
-    -- The unique partial index below is the hard backstop.
     SELECT COUNT(*)::int INTO v_count FROM trainer_profiles WHERE is_founding_50 = TRUE;
     IF v_count >= 50 THEN
         RETURN QUERY SELECT 'cap_reached'::text, v_count, v_profile_id;

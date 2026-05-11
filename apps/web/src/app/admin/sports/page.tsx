@@ -69,7 +69,7 @@ export default function AdminSportsPage() {
 
     useEffect(() => {
         if (name && !isEditing) {
-            setSlug(name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]/g, ''));
+            setSlug(name.toLowerCase().replace(/\s+&\s+/g, '_and_').replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''));
         }
     }, [name, isEditing]);
 

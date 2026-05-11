@@ -72,7 +72,7 @@ function formatDate(iso: string | null): string {
 
 function getDaysRemaining(profile: ProfileData): number {
     if (profile.subscription_status === 'trial' && profile.trial_started_at) {
-        const end = new Date(new Date(profile.trial_started_at).getTime() + 7 * 24 * 60 * 60 * 1000);
+        const end = new Date(new Date(profile.trial_started_at).getTime() + 30 * 24 * 60 * 60 * 1000);
         return Math.max(0, Math.ceil((end.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
     }
     if (profile.subscription_expires_at) {

@@ -150,11 +150,11 @@ export default function AdminSubscriptionsPage() {
     };
 
     const handleApproveFounding50 = async (profileId: string, trainerName: string) => {
-        showConfirm("Approve Founding 50", `Grant ${trainerName} 6 months of free Pro access as a Founding 50 member?`, async () => {
+        showConfirm("Approve Founding 50", `Grant ${trainerName} 1 year of free Pro access as a Founding 50 member?`, async () => {
             setProcessing(profileId);
             try {
                 const expiresAt = new Date();
-                expiresAt.setMonth(expiresAt.getMonth() + 6);
+                expiresAt.setFullYear(expiresAt.getFullYear() + 1);
                 const { error } = await supabase.from("trainer_profiles").update({
                     subscription_status: "active",
                     subscription_expires_at: expiresAt.toISOString(),
@@ -164,7 +164,7 @@ export default function AdminSubscriptionsPage() {
                 if (error) throw error;
                 await loadData();
                 if (selectedSub?.id === profileId) await handleSelectRow({ ...selectedSub, status: "active" });
-                showAlert("success", "Founding 50 Approved", `${trainerName} now has 6 months of free Pro access.`);
+                showAlert("success", "Founding 50 Approved", `${trainerName} now has 1 year of free Pro access.`);
             } catch (err: any) {
                 showAlert("error", "Error", err?.message || "Failed to approve Founding 50.");
             } finally {

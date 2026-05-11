@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const FOUNDING_50_MAX = 50;
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 30;
 
 type SubStatus = "trial" | "active" | "expired" | "cancelled";
 
@@ -210,7 +210,7 @@ export default function SubscriptionPage() {
             setPopup({
                 type: "success",
                 title: "Application Submitted!",
-                message: "You've applied for the Founding 50 program. An admin will review your application and activate 6 months free access shortly.",
+                message: "You've applied for the Founding 50 program. An admin will review your application and activate 1 year free access shortly.",
             });
         } catch (err: any) {
             setPopup({ type: "error", title: "Error", message: err.message || "Failed to apply. Please try again." });
@@ -343,7 +343,7 @@ export default function SubscriptionPage() {
                             Founding 50 — Pending Admin Approval
                         </p>
                         <p className="text-text-main/60 text-sm">
-                            Your application is under review. Once approved, you'll receive 6 months of free Pro access. You'll be notified shortly.
+                            Your application is under review. Once approved, you'll receive 1 year of free Pro access. You'll be notified shortly.
                         </p>
                     </div>
                 </div>
@@ -458,13 +458,13 @@ export default function SubscriptionPage() {
                             </div>
                             <p className="text-text-main/60 text-sm leading-relaxed mb-5">
                                 Are you one of our first coaches? Apply for the <strong className="text-yellow-400">Founding 50</strong> program and get{" "}
-                                <strong className="text-yellow-400">6 months of free Pro access</strong> after admin approval. Founding members receive a special gold badge and lifetime recognition.
+                                <strong className="text-yellow-400">1 year of free Pro access</strong> after admin approval. Founding members receive a special gold badge and lifetime recognition.
                             </p>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                                 {[
                                     { icon: Trophy, label: "Gold Founder Badge" },
-                                    { icon: Calendar, label: "6 Months Free" },
+                                    { icon: Calendar, label: "1 Year Free" },
                                     { icon: Users, label: "Lifetime Recognition" },
                                 ].map(({ icon: Icon, label }) => (
                                     <div key={label} className="flex items-center gap-2.5 bg-yellow-500/5 border border-yellow-500/10 rounded-xl px-4 py-3">

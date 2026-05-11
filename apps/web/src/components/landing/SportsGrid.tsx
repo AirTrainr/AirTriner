@@ -35,7 +35,11 @@ const SPORT_IMAGES: Record<string, string> = {
     boxing: "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?w=600&auto=format&fit=crop&q=80",
     hockey: "https://images.unsplash.com/photo-1580748141549-71748dbe0bdc?w=600&auto=format&fit=crop&q=80",
     lacrosse: "https://images.unsplash.com/photo-1589801265819-251f2fbc5304?w=600&auto=format&fit=crop&q=80",
-    fitness: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80"
+    fitness: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80",
+    crossfit: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&auto=format&fit=crop&q=80",
+    gymnastics: "https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=600&auto=format&fit=crop&q=80",
+    volleyball: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=600&auto=format&fit=crop&q=80",
+    wrestling: "https://images.unsplash.com/photo-1599474924187-334a4ae5bd3c?w=600&auto=format&fit=crop&q=80",
 };
 
 export default function SportsGrid() {
@@ -69,7 +73,8 @@ export default function SportsGrid() {
     }, []);
 
     const getSportImg = (sport: Sport) => {
-        const s = sport.slug.toLowerCase();
+        const s = sport.slug.toLowerCase().replace(/-/g, '_');
+        if (SPORT_IMAGES[s]) return SPORT_IMAGES[s];
         for (const [k, v] of Object.entries(SPORT_IMAGES)) {
             if (s.includes(k) || k.includes(s)) return v;
         }
