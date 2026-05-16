@@ -213,6 +213,70 @@ export async function sendContactNotification(data: ContactNotificationData): Pr
     }
 }
 
+// ── Send signup notification (admin alert when a new user joins) ──
+
+export interface SignupNotificationData {
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: 'athlete' | 'trainer';
+    platform: 'web' | 'mobile';
+    userId: string;
+}
+
+export async function sendSignupNotification(data: SignupNotificationData): Promise<void> {
+    try {
+        const t = await getTransporter();
+        const timestamp = new Date().toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short',
+        });
+        const fullName = `${data.firstName} ${data.lastName}`.trim();
+        const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1);
+        const platformLabel = data.platform === 'web' ? 'Website' : 'Mobile App';
+
+        const body = `
+            <p style="font-size: 18px; margin: 0 0 16px;">New ${roleLabel} Signup</p>
+            <p style="color: #aaa; margin: 0 0 24px;">A new ${data.role} just created an AirTrainr account.</p>
+
+            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
+                <p style="margin: 0 0 8px;"><strong>Name:</strong> ${fullName || '(not provided)'}</p>
+                <p style="margin: 0 0 8px;"><strong>Email:</strong> ${data.email}</p>
+                <p style="margin: 0 0 8px;"><strong>Role:</strong> ${roleLabel}</p>
+                <p style="margin: 0 0 8px;"><strong>Signed up on:</strong> ${platformLabel}</p>
+                <p style="margin: 0 0 8px;"><strong>User ID:</strong> ${data.userId}</p>
+                <p style="margin: 0;"><strong>Time:</strong> ${timestamp}</p>
+            </div>
+
+            <p style="color: #888; font-size: 13px;">
+                ${data.role === 'trainer'
+                    ? 'Review the trainer profile in the <a href="https://air-triner-web.vercel.app/admin/trainers" style="color: #a3ff12;">Admin Panel</a> to approve them once their profile is complete.'
+                    : 'View the athlete in the <a href="https://air-triner-web.vercel.app/admin" style="color: #a3ff12;">Admin Panel</a>.'}
+            </p>
+        `;
+
+        const info = await t.sendMail({
+            from: '"AirTrainr" <contact@airtrainr.com>',
+            to: 'contact@airtrainr.com',
+            subject: `[AirTrainr] New ${roleLabel} signup — ${fullName || data.email}`,
+            html: wrapHtml(`New ${roleLabel} Signup`, body),
+        });
+
+        if (process.env.NODE_ENV !== 'production') {
+            const previewUrl = nodemailer.getTestMessageUrl(info);
+            console.log(`[email] Signup notification preview: ${previewUrl}`);
+        }
+        console.log(`[email] Signup notification sent for ${data.email}`);
+    } catch (error) {
+        console.error('[email] Failed to send signup notification:', error);
+    }
+}
+
 // ── Send trainer receipt ──
 
 export async function sendTrainerReceipt(data: BookingReceiptData): Promise<void> {

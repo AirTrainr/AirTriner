@@ -160,6 +160,20 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
     return authUser;
 }
 
+// Notify admin via email when a new user signs up. Fire-and-forget — never
+// block the signup flow if the notification fails.
+async function notifyAdminOfSignup(userId: string) {
+    try {
+        await fetch("/api/auth/signup-notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, platform: "web" }),
+        });
+    } catch (err) {
+        console.error("[auth] signup-notify failed", err);
+    }
+}
+
 // Register a new user using real Supabase Auth
 export async function registerUser(data: {
     email: string;
@@ -311,5 +325,6 @@ export async function registerUser(data: {
     };
 
     setSession(authUser);
+    void notifyAdminOfSignup(u.id);
     return authUser;
 }

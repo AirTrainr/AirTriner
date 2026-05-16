@@ -205,13 +205,13 @@ function DashboardLayoutContent({ user, mobileMenuOpen, setMobileMenuOpen, navIt
             {/* Mobile Overlay */}
             {mobileMenuOpen && (
                 <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1090] md:hidden transition-opacity"
                     onClick={() => setMobileMenuOpen(false)}
                 />
             )}
 
             {/* Sidebar */}
-            <aside className={`fixed top-0 h-screen inset-y-0 left-0 w-[260px] bg-surface border-r border-white/5 flex-col z-50 transform transition-transform duration-300 ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 flex`}>
+            <aside className={`fixed top-0 h-screen inset-y-0 left-0 w-[260px] bg-surface border-r border-white/5 flex-col z-[1100] transform transition-transform duration-300 ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 flex`}>
                 {/* Logo Area */}
                 <div className="h-20 flex items-center justify-between px-6 border-b border-white/5 shrink-0">
                     <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>

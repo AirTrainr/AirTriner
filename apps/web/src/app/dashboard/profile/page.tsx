@@ -444,11 +444,16 @@ export default function ProfilePage() {
         if (!user) return;
         setDeleting(true);
         try {
-            await supabase.from("users").update({ deleted_at: new Date().toISOString() }).eq("id", user.id);
+            const res = await fetch("/api/account/delete", { method: "POST" });
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body?.error || "Failed to delete account");
+            }
             await clearSession();
             router.push("/auth/login");
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to delete account:", err);
+            toast.error(err.message || "Failed to delete account. Please try again.");
             setDeleting(false);
             setShowDeleteConfirm(false);
         }

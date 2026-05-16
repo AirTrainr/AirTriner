@@ -1,4 +1,18 @@
 import { supabase, UserRow, TrainerProfileRow, AthleteProfileRow } from './supabase';
+import { Config } from './config';
+
+// Fire-and-forget admin notification that a new user signed up on mobile.
+async function notifyAdminOfSignup(userId: string) {
+    try {
+        await fetch(`${Config.appUrl.replace(/\/$/, '')}/api/auth/signup-notify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, platform: 'mobile' }),
+        });
+    } catch (err) {
+        console.warn('[auth] signup-notify failed', err);
+    }
+}
 
 export interface AuthUser {
     id: string;
@@ -221,6 +235,8 @@ export async function registerUser(data: {
             .single();
         athleteProfile = ap as AthleteProfileRow | null;
     }
+
+    void notifyAdminOfSignup(u.id);
 
     return {
         id: u.id,
