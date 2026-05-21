@@ -72,7 +72,7 @@ function formatDate(iso: string | null): string {
 
 function getDaysRemaining(profile: ProfileData): number {
     if (profile.subscription_status === 'trial' && profile.trial_started_at) {
-        const end = new Date(new Date(profile.trial_started_at).getTime() + 30 * 24 * 60 * 60 * 1000);
+        const end = new Date(new Date(profile.trial_started_at).getTime() + 90 * 24 * 60 * 60 * 1000);
         return Math.max(0, Math.ceil((end.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
     }
     if (profile.subscription_expires_at) {
@@ -422,11 +422,11 @@ export default function SubscriptionScreen({ navigation }: any) {
                                 <View>
                                     <Text style={[styles.planCardTitle, { color: '#fff' }]}>Annual</Text>
                                     <Text style={[styles.planCardSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>
-                                        Best value - Save $50
+                                        Best value - Save $100
                                     </Text>
                                 </View>
                                 <View style={styles.planPriceWrap}>
-                                    <Text style={[styles.planPrice, { color: '#fff' }]}>$250</Text>
+                                    <Text style={[styles.planPrice, { color: '#fff' }]}>$200</Text>
                                     <Text style={[styles.planPricePeriod, { color: 'rgba(255,255,255,0.7)' }]}>/yr</Text>
                                 </View>
                             </View>
