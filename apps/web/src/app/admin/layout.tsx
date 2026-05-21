@@ -322,7 +322,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
                             {/* Notifications Dropdown */}
                             {showNotifications && (
-                                <div className="fixed sm:absolute right-2 sm:right-0 top-[64px] sm:top-14 left-2 sm:left-auto w-auto sm:w-[380px] bg-surface border border-white/5 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="fixed sm:absolute right-2 sm:right-0 top-[64px] sm:top-14 left-2 sm:left-auto w-auto sm:w-[380px] bg-surface border border-white/5 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                                     <div className="flex items-center justify-between p-5 border-b border-white/5">
                                         <h3 className="font-black text-text-main text-sm">Notifications</h3>
                                         <button onClick={() => setShowNotifications(false)} className="text-text-main/40 hover:text-text-main transition-colors">
