@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
@@ -8,19 +8,35 @@ import ScreenWrapper from '../../components/ui/ScreenWrapper';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 
-export default function ForgotPasswordScreen({ navigation }: any) {
-    const [email, setEmail] = useState('');
+interface Props {
+    route: {
+        params: {
+            code: string;
+            onDone: () => void;
+        };
+    };
+}
+
+export default function ResetPasswordScreen({ route }: Props) {
+    const { code, onDone } = route.params;
+
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [sent, setSent] = useState(false);
+    const [done, setDone] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleSendReset = async () => {
-        if (!email.trim()) {
-            setError('Please enter your email address');
+    const handleReset = async () => {
+        if (!password) {
+            setError('Please enter a new password');
             return;
         }
-        if (!/\S+@\S+\.\S+/.test(email)) {
-            setError('Please enter a valid email address');
+        if (password.length < 8) {
+            setError('Password must be at least 8 characters');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
             return;
         }
 
@@ -28,13 +44,25 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         setError(null);
 
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: 'airtrainr://reset-password',
-            });
-            if (resetError) throw resetError;
-            setSent(true);
+            // Step 1: Exchange PKCE code for session
+            const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+            if (sessionError) throw sessionError;
+
+            // Step 2: Update the password
+            const { error: updateError } = await supabase.auth.updateUser({ password });
+            if (updateError) throw updateError;
+
+            // Step 3: Sign out so user logs in fresh with new password
+            await supabase.auth.signOut();
+
+            setDone(true);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to send reset email');
+            const msg = err instanceof Error ? err.message : 'Failed to reset password';
+            if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid')) {
+                setError('This reset link has expired. Please request a new one.');
+            } else {
+                setError(msg);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -42,57 +70,43 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
     return (
         <ScreenWrapper contentStyle={styles.content}>
-            {/* Back Button */}
-            <Animated.View entering={FadeInDown.duration(250)}>
-                <Pressable
-                    style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-                    onPress={() => navigation.goBack()}
-                    accessibilityLabel="Back to login"
-                >
-                    <Ionicons name="arrow-back" size={22} color={Colors.textSecondary} />
-                    <Text style={styles.backText}>Back to login</Text>
-                </Pressable>
-            </Animated.View>
-
-            {/* Centered content wrapper */}
             <View style={styles.centerWrapper}>
+
                 {/* Header */}
-                <Animated.View entering={FadeInDown.duration(250).delay(30)} style={styles.header}>
+                <Animated.View entering={FadeInDown.duration(250)} style={styles.header}>
                     <View style={styles.iconContainer}>
-                        <Ionicons name="lock-open-outline" size={36} color={Colors.primary} />
+                        <Ionicons name="lock-closed-outline" size={36} color={Colors.primary} />
                     </View>
-                    <Text style={styles.title}>Reset Password</Text>
+                    <Text style={styles.title}>Set New Password</Text>
                     <Text style={styles.subtitle}>
-                        Enter your email and we'll send you a link to reset your password.
+                        Choose a strong password for your AirTrainr account.
                     </Text>
                 </Animated.View>
 
-                {sent ? (
-                    /* Success State with animated checkmark */
-                    <Animated.View entering={FadeInDown.duration(250).delay(30)} style={styles.successContainer}>
+                {done ? (
+                    /* ── Success State ── */
+                    <Animated.View entering={FadeInDown.duration(250)} style={styles.successContainer}>
                         <View style={styles.successIconOuter}>
                             <View style={styles.successIconInner}>
                                 <Ionicons name="checkmark" size={36} color={Colors.background} />
                             </View>
                         </View>
-                        <Text style={styles.successTitle}>Check your email</Text>
+                        <Text style={styles.successTitle}>Password Updated!</Text>
                         <Text style={styles.successMessage}>
-                            We've sent a password reset link to{'\n'}
-                            <Text style={styles.successEmail}>{email}</Text>
-                            {'\n\n'}It may take a few minutes to arrive.
+                            Your password has been reset successfully.{'\n'}
+                            Sign in with your new password.
                         </Text>
                         <View style={styles.successAction}>
                             <Button
-                                title="Back to Sign In"
-                                onPress={() => navigation.goBack()}
-                                variant="outline"
+                                title="Sign In"
+                                onPress={onDone}
+                                size="lg"
                             />
                         </View>
                     </Animated.View>
                 ) : (
-                    /* Form */
+                    /* ── Form ── */
                     <Animated.View entering={FadeInDown.duration(250).delay(60)} style={styles.form}>
-                        {/* Error */}
                         {error && (
                             <View style={styles.errorContainer}>
                                 <Ionicons name="alert-circle" size={18} color={Colors.error} />
@@ -101,21 +115,27 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                         )}
 
                         <Input
-                            label="Email Address"
-                            icon="mail-outline"
-                            placeholder="name@domain.com"
-                            value={email}
-                            onChangeText={(t) => { setEmail(t); setError(null); }}
-                            error={error ? undefined : undefined}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoCorrect={false}
+                            label="New Password"
+                            icon="lock-closed-outline"
+                            placeholder="Minimum 8 characters"
+                            value={password}
+                            onChangeText={(t) => { setPassword(t); setError(null); }}
+                            secureTextEntry
                             autoFocus
                         />
 
+                        <Input
+                            label="Confirm Password"
+                            icon="lock-closed-outline"
+                            placeholder="Re-enter your password"
+                            value={confirmPassword}
+                            onChangeText={(t) => { setConfirmPassword(t); setError(null); }}
+                            secureTextEntry
+                        />
+
                         <Button
-                            title="Send Reset Link"
-                            onPress={handleSendReset}
+                            title="Reset Password"
+                            onPress={handleReset}
                             loading={isLoading}
                             disabled={isLoading}
                             size="lg"
@@ -132,25 +152,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.xxl,
         flex: 1,
     },
-    backButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-        marginBottom: Spacing.xxl,
-        minHeight: 44,
-    },
-    backText: {
-        fontSize: FontSize.sm,
-        color: Colors.textSecondary,
-    },
-
-    // Center content vertically
     centerWrapper: {
         flex: 1,
         justifyContent: 'center',
         paddingBottom: Spacing.huge,
     },
-
     header: {
         alignItems: 'center',
         marginBottom: Spacing.huge,
@@ -198,8 +204,6 @@ const styles = StyleSheet.create({
         fontSize: FontSize.sm,
         color: Colors.error,
     },
-
-    // Success state with animated checkmark
     successContainer: {
         alignItems: 'center',
         paddingTop: Spacing.xl,
@@ -234,10 +238,6 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         textAlign: 'center',
         lineHeight: 22,
-    },
-    successEmail: {
-        color: Colors.primary,
-        fontWeight: FontWeight.semibold,
     },
     successAction: {
         marginTop: Spacing.xxxl,
