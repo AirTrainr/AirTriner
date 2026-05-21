@@ -19,6 +19,9 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
             user: process.env.SMTP_USER || 'contact@airtrainr.com',
             pass: process.env.SMTP_PASS || '',
         },
+        tls: {
+            rejectUnauthorized: false,
+        },
     });
 
     return transporter;
@@ -260,9 +263,10 @@ export async function sendSignupNotification(data: SignupNotificationData): Prom
             </p>
         `;
 
+        const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'contact@airtrainr.com';
         const info = await t.sendMail({
             from: '"AirTrainr" <contact@airtrainr.com>',
-            to: 'contact@airtrainr.com',
+            to: adminEmail,
             subject: `[AirTrainr] New ${roleLabel} signup — ${fullName || data.email}`,
             html: wrapHtml(`New ${roleLabel} Signup`, body),
         });
