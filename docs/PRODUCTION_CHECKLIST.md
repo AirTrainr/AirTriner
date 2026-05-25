@@ -41,10 +41,13 @@ Web app was just migrated from OLD (`duaqkmptxsnonvtfdohp`) to NEW (`qkxcyavqzrv
 
 - [ ] **`apps/web/.env:33-37`** — GoDaddy SMTP creds (`contact@airtrainr.com` / plaintext password) are in repo. Move to Vercel env vars only, remove from committed file, rotate password if exposed.
 
-## Email verification / Auth
+## Email verification / Auth templates
 
-- [ ] Verify Supabase Auth email templates are configured on NEW project (Auth → Email Templates)
-- [ ] Confirm SMTP for Supabase Auth (in Dashboard → Auth → SMTP Settings) if using custom domain emails
+- [ ] **Upload branded Supabase Auth email templates** — see [`docs/supabase-email-templates/`](./supabase-email-templates/). Six tabs in Supabase Dashboard → Authentication → Email Templates: confirm signup, invite user, magic link, change email, reset password, reauthentication. Copy/paste each `.html` file into the matching tab and set the subject lines per the README.
+- [ ] **Enable Custom SMTP in Supabase** (Dashboard → Project Settings → Auth → SMTP Settings) so auth emails go via `contact@airtrainr.com` instead of the default Supabase sender. Same GoDaddy creds as `apps/web/.env`. Without this, emails are rate-limited and may land in spam.
+- [ ] **Site URL + redirect URLs** in Supabase Auth → URL Configuration:
+  - Site URL: production domain (e.g. `https://airtrainr.com`)
+  - Redirect URLs: `https://airtrainr.com/auth/callback`, `https://airtrainr.com/auth/reset-password`, `airtrainr://auth/callback` (mobile)
 
 ## Cloudinary
 
