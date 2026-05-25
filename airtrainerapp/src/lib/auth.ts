@@ -87,6 +87,14 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
 
     const u = user;
 
+    // Mirror the web loginUser guard: a soft-deleted account still has a live
+    // Supabase Auth row, so signInWithPassword succeeds — we have to block at
+    // the profile level. Sign out so the recovered session doesn't linger.
+    if (u.deleted_at) {
+        await supabase.auth.signOut();
+        throw new Error('Your account has been suspended. Please contact support.');
+    }
+
     let trainerProfile: TrainerProfileRow | null = null;
     let athleteProfile: AthleteProfileRow | null = null;
 

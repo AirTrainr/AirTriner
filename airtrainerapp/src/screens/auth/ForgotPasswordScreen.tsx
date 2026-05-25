@@ -1,18 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { Config } from '../../lib/config';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import ScreenWrapper from '../../components/ui/ScreenWrapper';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
+
+// Throttle resets to keep users from blowing past Supabase's built-in SMTP
+// limit (4 emails / hour per IP) which surfaces as a confusing
+// "email rate limit exceeded" the next time they try.
+const COOLDOWN_SECONDS = 60;
 
 export default function ForgotPasswordScreen({ navigation }: any) {
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [cooldownRemaining, setCooldownRemaining] = useState(0);
+    const cooldownUntilRef = useRef(0);
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            const remaining = Math.max(0, Math.ceil((cooldownUntilRef.current - Date.now()) / 1000));
+            setCooldownRemaining(remaining);
+        }, 1000);
+        return () => clearInterval(id);
+    }, []);
 
     const handleSendReset = async () => {
         if (!email.trim()) {
@@ -23,16 +39,36 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             setError('Please enter a valid email address');
             return;
         }
+        if (cooldownRemaining > 0) {
+            setError(`Please wait ${cooldownRemaining}s before requesting another link`);
+            return;
+        }
 
         setIsLoading(true);
         setError(null);
 
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+            // Land the email link on the web app's reset page — the mobile app
+            // has no in-app recovery handler yet, and the web page is already
+            // wired to update the password and redirect to login.
+            const redirectTo = `${Config.appUrl.replace(/\/$/, '')}/auth/reset-password`;
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+                email.trim().toLowerCase(),
+                { redirectTo }
+            );
             if (resetError) throw resetError;
+            cooldownUntilRef.current = Date.now() + COOLDOWN_SECONDS * 1000;
+            setCooldownRemaining(COOLDOWN_SECONDS);
             setSent(true);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Failed to send reset email');
+            const raw = err instanceof Error ? err.message : '';
+            if (/rate limit/i.test(raw)) {
+                setError(
+                    'Too many reset attempts from this network. Please wait about an hour, or try again from a different connection.'
+                );
+            } else {
+                setError(raw || 'Failed to send reset email');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -112,10 +148,14 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                         />
 
                         <Button
-                            title="Send Reset Link"
+                            title={
+                                cooldownRemaining > 0
+                                    ? `Try again in ${cooldownRemaining}s`
+                                    : 'Send Reset Link'
+                            }
                             onPress={handleSendReset}
                             loading={isLoading}
-                            disabled={isLoading}
+                            disabled={isLoading || cooldownRemaining > 0}
                             size="lg"
                         />
                     </Animated.View>
