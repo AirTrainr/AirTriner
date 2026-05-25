@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Plus, FileText, CheckCircle, Search, XCircle, ChevronLeft, ChevronRight, UserCheck, Clock, Award, ExternalLink, ShieldCheck, ShieldX, X, Mail, Phone, MapPin, Calendar, CreditCard, Loader2, Activity, DollarSign, ImageIcon, Eye, Check } from "lucide-react";
+import { Download, Plus, FileText, CheckCircle, Search, XCircle, ChevronLeft, ChevronRight, UserCheck, Clock, Award, ExternalLink, ShieldCheck, ShieldX, X, Mail, Phone, MapPin, Calendar, CreditCard, Loader2, Activity, DollarSign, ImageIcon, Eye, Check, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { adminFetch } from "@/lib/admin-fetch";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -72,7 +72,7 @@ export default function AdminTrainersPage() {
 
     const loadTrainers = async () => {
         try {
-            const { data: usersData } = await supabase.from("users").select("id, email, first_name, last_name, phone, role, is_suspended, is_approved, avatar_url, created_at, deleted_at, email_verified, phone_verified, date_of_birth, sex").eq("role", "trainer");
+            const { data: usersData } = await supabase.from("users").select("id, email, first_name, last_name, phone, role, is_suspended, is_approved, avatar_url, created_at, deleted_at, email_verified, phone_verified, date_of_birth, sex").eq("role", "trainer").is("deleted_at", null);
             if (!usersData) return;
 
             const userIds = usersData.map(u => u.id);
@@ -155,6 +155,8 @@ export default function AdminTrainersPage() {
 
     const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, id: string | null, newStatus: string | null, name: string}>({isOpen: false, id: null, newStatus: null, name: ""});
     const [actionLoading, setActionLoading] = useState(false);
+    const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, id: string | null, name: string}>({isOpen: false, id: null, name: ""});
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [founding50Loading, setFounding50Loading] = useState<string | null>(null);
 
     const founding50Count = trainers.filter(t => t.isFounding50).length;
@@ -306,6 +308,28 @@ export default function AdminTrainersPage() {
 
     const requestStatusUpdate = (id: string, name: string, newStatus: string) => {
         setConfirmModal({ isOpen: true, id, newStatus, name });
+    };
+
+    const confirmDelete = async () => {
+        const { id } = deleteModal;
+        if (!id) return;
+        setDeleteLoading(true);
+        try {
+            const res = await adminFetch("/api/admin/delete-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: id }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json?.error || "Failed to delete trainer");
+            setTrainers(prev => prev.filter(t => t.id !== id));
+            setDeleteModal({ isOpen: false, id: null, name: "" });
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.message || "Failed to delete trainer");
+        } finally {
+            setDeleteLoading(false);
+        }
     };
 
     const confirmUpdateStatus = async () => {
@@ -663,18 +687,29 @@ export default function AdminTrainersPage() {
                                         </button>
                                     </td>
                                     <td className="px-6 py-5 pr-8 text-right" onClick={e => e.stopPropagation()}>
-                                        {t.isVerified || t.isDeclined ? (
-                                            <span className="text-text-main/40 italic text-[10px] font-bold uppercase tracking-wider">Action completed</span>
-                                        ) : (
-                                            <div className="flex justify-end gap-2">
-                                                <button onClick={() => requestStatusUpdate(t.id, t.name, "verified")} className="px-4 py-2 rounded-xl bg-primary text-bg font-black text-xs uppercase tracking-widest hover:shadow-[0_0_15px_rgba(69,208,255,0.3)] transition-all">
-                                                    Approve
-                                                </button>
-                                                <button onClick={() => requestStatusUpdate(t.id, t.name, "rejected")} className="px-4 py-2 rounded-xl bg-surface border border-white/5 text-text-main/80 text-xs font-black uppercase tracking-widest hover:bg-white/5 hover:text-red-500 hover:border-red-500/50 transition-all">
-                                                    Reject
-                                                </button>
-                                            </div>
-                                        )}
+                                        <div className="flex justify-end items-center gap-2">
+                                            {t.isVerified || t.isDeclined ? (
+                                                <span className="text-text-main/40 italic text-[10px] font-bold uppercase tracking-wider">Action completed</span>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => requestStatusUpdate(t.id, t.name, "verified")} className="px-4 py-2 rounded-xl bg-primary text-bg font-black text-xs uppercase tracking-widest hover:shadow-[0_0_15px_rgba(69,208,255,0.3)] transition-all">
+                                                        Approve
+                                                    </button>
+                                                    <button onClick={() => requestStatusUpdate(t.id, t.name, "rejected")} className="px-4 py-2 rounded-xl bg-surface border border-white/5 text-text-main/80 text-xs font-black uppercase tracking-widest hover:bg-white/5 hover:text-red-500 hover:border-red-500/50 transition-all">
+                                                        Reject
+                                                    </button>
+                                                </>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteModal({ isOpen: true, id: t.id, name: t.name })}
+                                                title="Delete trainer account"
+                                                aria-label={`Delete ${t.name}`}
+                                                className="p-2 rounded-xl bg-surface border border-white/5 text-text-main/60 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -734,6 +769,23 @@ export default function AdminTrainersPage() {
                 onCancel={() => setConfirmModal({ isOpen: false, id: null, newStatus: null, name: "" })}
                 onConfirm={confirmUpdateStatus}
                 isLoading={actionLoading}
+            />
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                title="Delete Trainer"
+                message={
+                    <span>
+                        Permanently delete <strong>{deleteModal.name}</strong>? This frees their email
+                        for reuse and removes them from all admin lists and search. Past bookings,
+                        messages, and reviews stay intact for athletes. This cannot be undone.
+                    </span>
+                }
+                confirmText="Delete Account"
+                type="danger"
+                onCancel={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
+                onConfirm={confirmDelete}
+                isLoading={deleteLoading}
             />
 
             {/* Trainer Detail Modal */}

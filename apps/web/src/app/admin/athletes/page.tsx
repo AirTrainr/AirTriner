@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Users, Activity, CheckCircle, XCircle, ChevronLeft, ChevronRight, X, Calendar, CreditCard, MapPin, Phone, Mail, Clock, Loader2 } from "lucide-react";
+import { Search, Users, Activity, CheckCircle, XCircle, ChevronLeft, ChevronRight, X, Calendar, CreditCard, MapPin, Phone, Mail, Clock, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { adminFetch } from "@/lib/admin-fetch";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -72,6 +72,8 @@ export default function AdminAthletesPage() {
 
     // Custom Confirm Modal State
     const [confirmModal, setConfirmModal] = useState<{isOpen: boolean, id: string | null, action: "suspend" | "activate" | null, name: string}>({isOpen: false, id: null, action: null, name: ""});
+    const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, id: string | null, name: string}>({isOpen: false, id: null, name: ""});
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -81,7 +83,7 @@ export default function AdminAthletesPage() {
         const loadAthletes = async () => {
             try {
                 // Fetch athletes
-                const { data } = await supabase.from("users").select("id, email, first_name, last_name, phone, role, is_suspended, is_approved, avatar_url, created_at, deleted_at, email_verified, phone_verified, date_of_birth, sex").eq("role", "athlete");
+                const { data } = await supabase.from("users").select("id, email, first_name, last_name, phone, role, is_suspended, is_approved, avatar_url, created_at, deleted_at, email_verified, phone_verified, date_of_birth, sex").eq("role", "athlete").is("deleted_at", null);
 
                 // Fetch total bookings count
                 const { count: bookingsCount } = await supabase
@@ -211,6 +213,28 @@ export default function AdminAthletesPage() {
             alert(err?.message || "Failed to update user status");
         } finally {
             setActionLoading(false);
+        }
+    };
+
+    const confirmDelete = async () => {
+        const { id } = deleteModal;
+        if (!id) return;
+        setDeleteLoading(true);
+        try {
+            const res = await adminFetch("/api/admin/delete-user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: id }),
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(json?.error || "Failed to delete user");
+            setAthletes(prev => prev.filter(a => a.id !== id));
+            setDeleteModal({ isOpen: false, id: null, name: "" });
+        } catch (err: any) {
+            console.error(err);
+            alert(err?.message || "Failed to delete user");
+        } finally {
+            setDeleteLoading(false);
         }
     };
 
@@ -403,6 +427,15 @@ export default function AdminAthletesPage() {
                                                     Suspend
                                                 </button>
                                             )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteModal({ isOpen: true, id: a.id, name: a.name })}
+                                                title="Delete account"
+                                                aria-label={`Delete ${a.name}`}
+                                                className="p-2 rounded-xl bg-surface border border-white/5 text-text-main/60 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -466,6 +499,23 @@ export default function AdminAthletesPage() {
                 onCancel={() => setConfirmModal({ isOpen: false, id: null, action: null, name: "" })}
                 onConfirm={confirmStatusChange}
                 isLoading={actionLoading}
+            />
+
+            <ConfirmModal
+                isOpen={deleteModal.isOpen}
+                title="Delete Athlete"
+                message={
+                    <span>
+                        Permanently delete <strong>{deleteModal.name}</strong>? This frees their email
+                        for reuse and removes them from all admin lists. Bookings, messages, and reviews
+                        stay intact for the counterparty. This cannot be undone.
+                    </span>
+                }
+                confirmText="Delete Account"
+                type="danger"
+                onCancel={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
+                onConfirm={confirmDelete}
+                isLoading={deleteLoading}
             />
 
             {/* Athlete Detail Modal */}
