@@ -1,7 +1,9 @@
 // ============================================
-// AirTrainr Web - Email Service
-// Sends transactional emails (receipts, etc.)
+
+
+// AirTrainr Web — Transactional email service
 // Uses nodemailer with GoDaddy SMTP (contact@airtrainr.com)
+// All templates share a single table-based, email-client-safe layout.
 // ============================================
 
 import nodemailer from 'nodemailer';
@@ -24,22 +26,31 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
     return transporter;
 }
 
-// ── Shared HTML wrapper ──
+// ──────────────────────────────────────────────────────────────────────────────
+// Shared design tokens
+// ──────────────────────────────────────────────────────────────────────────────
 
-function wrapHtml(title: string, bodyContent: string): string {
-    return `
-    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #ffffff; border-radius: 16px; overflow: hidden;">
-        <div style="background: linear-gradient(135deg, #a3ff12 0%, #7acc0e 100%); padding: 32px; text-align: center;">
-            <h1 style="margin: 0; color: #0a0a0a; font-size: 24px;">AirTrainr</h1>
-            <p style="margin: 8px 0 0; color: #0a0a0a; font-size: 14px;">${title}</p>
-        </div>
-        <div style="padding: 32px;">
-            ${bodyContent}
-        </div>
-        <div style="padding: 16px 32px; border-top: 1px solid #222; text-align: center;">
-            <p style="color: #666; font-size: 12px; margin: 0;">AirTrainr Inc. &middot; This is an automated receipt.</p>
-        </div>
-    </div>`;
+const BRAND = {
+    name: 'AirTrainr',
+    tagline: 'Train. Connect. Dominate.',
+    primary: '#45D0FF',       // cyan brand accent
+    primaryDark: '#0a85b3',
+    text: '#0f172a',          // near-black for body copy
+    textMuted: '#64748b',     // slate-500
+    textDim: '#94a3b8',       // slate-400
+    bg: '#f5f7fa',            // light page background
+    cardBg: '#ffffff',
+    border: '#e2e8f0',        // slate-200
+    headerBg: '#0a0a14',      // dark navy for branded header strip
+    success: '#16a34a',
+    warn: '#f59e0b',
+};
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://airtrainr.com';
+const SUPPORT_EMAIL = 'contact@airtrainr.com';
+
+function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
 function formatCurrency(amount: number): string {
@@ -59,10 +70,153 @@ function formatDate(dateStr: string): string {
 }
 
 function formatSport(sport: string): string {
-    return sport.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return sport.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-// ── Receipt data shape ──
+// ──────────────────────────────────────────────────────────────────────────────
+// Reusable email building blocks
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Render a primary CTA button. Uses table-based layout for Outlook compatibility.
+ */
+function emailButton(label: string, href: string, variant: 'primary' | 'secondary' = 'primary'): string {
+    const bg = variant === 'primary' ? BRAND.headerBg : '#ffffff';
+    const color = variant === 'primary' ? '#ffffff' : BRAND.text;
+    const border = variant === 'primary' ? BRAND.headerBg : BRAND.border;
+    return `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+        <tr>
+            <td style="border-radius:10px;background:${bg};">
+                <a href="${href}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:0.3px;text-decoration:none;color:${color};border:1.5px solid ${border};border-radius:10px;">
+                    ${escapeHtml(label)}
+                </a>
+            </td>
+        </tr>
+    </table>`;
+}
+
+/**
+ * Render a key/value info card with rounded background.
+ */
+function infoCard(rows: { label: string; value: string }[]): string {
+    const tr = rows.map(r => `
+        <tr>
+            <td style="padding:6px 0;color:${BRAND.textMuted};font-size:13px;width:40%;">${escapeHtml(r.label)}</td>
+            <td style="padding:6px 0;color:${BRAND.text};font-size:14px;font-weight:600;">${r.value}</td>
+        </tr>
+    `).join('');
+    return `
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${BRAND.cardBg};border:1px solid ${BRAND.border};border-radius:12px;margin:0 0 20px;">
+        <tr><td style="padding:18px 20px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${tr}</table>
+        </td></tr>
+    </table>`;
+}
+
+/**
+ * Master layout. Pass title (sub-header), preheader (preview text), and body HTML.
+ */
+function emailLayout(opts: { title: string; preheader?: string; body: string }): string {
+    const { title, preheader = '', body } = opts;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>${escapeHtml(title)}</title>
+    <style>
+        @media only screen and (max-width: 600px) {
+            .container { width: 100% !important; }
+            .px-mobile { padding-left: 20px !important; padding-right: 20px !important; }
+            .hero-title { font-size: 24px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0;padding:0;background:${BRAND.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${BRAND.text};">
+
+    <!-- Preheader (preview text in inbox list) -->
+    ${preheader ? `<div style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;max-height:0;mso-hide:all;">${escapeHtml(preheader)}</div>` : ''}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${BRAND.bg};">
+        <tr><td align="center" style="padding:32px 16px;">
+
+            <!-- Email card -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="container" width="600" style="width:600px;max-width:600px;background:${BRAND.cardBg};border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.06);">
+
+                <!-- Header -->
+                <tr>
+                    <td style="background:${BRAND.headerBg};padding:32px 40px;text-align:center;" class="px-mobile">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                            <tr>
+                                <td style="vertical-align:middle;">
+                                    <div style="display:inline-block;width:36px;height:36px;border-radius:8px;background:${BRAND.primary};vertical-align:middle;text-align:center;line-height:36px;font-size:20px;font-weight:900;color:${BRAND.headerBg};">A</div>
+                                </td>
+                                <td style="vertical-align:middle;padding-left:12px;">
+                                    <span style="font-size:22px;font-weight:900;letter-spacing:2px;color:#ffffff;text-transform:uppercase;">${BRAND.name}</span>
+                                </td>
+                            </tr>
+                        </table>
+                        <p style="margin:14px 0 0;color:${BRAND.primary};font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">${BRAND.tagline}</p>
+                    </td>
+                </tr>
+
+                <!-- Hero / Sub-header -->
+                <tr>
+                    <td style="padding:36px 40px 8px;" class="px-mobile">
+                        <h1 class="hero-title" style="margin:0;font-size:26px;font-weight:800;letter-spacing:-0.4px;color:${BRAND.text};line-height:1.25;">
+                            ${escapeHtml(title)}
+                        </h1>
+                    </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                    <td style="padding:16px 40px 36px;font-size:15px;line-height:1.6;color:${BRAND.text};" class="px-mobile">
+                        ${body}
+                    </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                    <td style="background:#fafbfc;border-top:1px solid ${BRAND.border};padding:24px 40px;" class="px-mobile">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                            <tr>
+                                <td style="text-align:center;">
+                                    <p style="margin:0 0 8px;color:${BRAND.textMuted};font-size:13px;line-height:1.5;">
+                                        Need help? <a href="mailto:${SUPPORT_EMAIL}" style="color:${BRAND.primaryDark};text-decoration:none;font-weight:600;">${SUPPORT_EMAIL}</a>
+                                    </p>
+                                    <p style="margin:0 0 16px;">
+                                        <a href="${APP_URL}/dashboard" style="color:${BRAND.textMuted};font-size:12px;text-decoration:none;margin:0 8px;">Dashboard</a>
+                                        <span style="color:${BRAND.border};">·</span>
+                                        <a href="${APP_URL}/contact" style="color:${BRAND.textMuted};font-size:12px;text-decoration:none;margin:0 8px;">Support</a>
+                                        <span style="color:${BRAND.border};">·</span>
+                                        <a href="${APP_URL}/legal/privacy" style="color:${BRAND.textMuted};font-size:12px;text-decoration:none;margin:0 8px;">Privacy</a>
+                                        <span style="color:${BRAND.border};">·</span>
+                                        <a href="${APP_URL}/legal/terms" style="color:${BRAND.textMuted};font-size:12px;text-decoration:none;margin:0 8px;">Terms</a>
+                                    </p>
+                                    <p style="margin:0;color:${BRAND.textDim};font-size:11px;line-height:1.5;">
+                                        © ${new Date().getFullYear()} AirTrainr. All rights reserved.<br>
+                                        You're receiving this email because you have an account with us.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+
+            </table>
+
+        </td></tr>
+    </table>
+</body>
+</html>`;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Receipt data shape
+// ──────────────────────────────────────────────────────────────────────────────
 
 export interface BookingReceiptData {
     athleteEmail: string;
@@ -72,77 +226,94 @@ export interface BookingReceiptData {
     sport: string;
     scheduledAt: string;
     durationMinutes: number;
-    sessionFee: number;    // trainer's rate (price)
-    platformFee: number;   // 3% platform fee
-    stripeFee: number;     // Stripe 2.9% + $0.30 (paid by athlete)
-    taxAmount: number;     // Sales tax (e.g. Canadian HST); 0 if not applicable
-    taxLabel: string;      // e.g. "HST (13%)" or "" if no tax
-    totalPaid: number;     // sessionFee + platformFee + stripeFee + taxAmount
-    trainerPayout: number; // what trainer receives (= sessionFee, 100%)
+    sessionFee: number;
+    platformFee: number;
+    stripeFee: number;
+    taxAmount: number;
+    taxLabel: string;
+    totalPaid: number;
+    trainerPayout: number;
     bookingId: string;
 }
 
-// ── Send athlete receipt ──
+// ──────────────────────────────────────────────────────────────────────────────
+// Athlete booking receipt
+// ──────────────────────────────────────────────────────────────────────────────
 
 export async function sendAthleteReceipt(data: BookingReceiptData): Promise<void> {
     try {
         const t = await getTransporter();
         const sportName = formatSport(data.sport);
         const dateStr = formatDate(data.scheduledAt);
+        const firstName = (data.athleteName || '').split(' ')[0] || 'there';
+
+        const breakdownRows = `
+            <tr>
+                <td style="padding:6px 0;color:${BRAND.text};font-size:14px;">Session fee</td>
+                <td style="padding:6px 0;text-align:right;color:${BRAND.text};font-size:14px;font-weight:600;">${formatCurrency(data.sessionFee)}</td>
+            </tr>
+            <tr>
+                <td style="padding:6px 0;color:${BRAND.textMuted};font-size:13px;">Platform fee (3%)</td>
+                <td style="padding:6px 0;text-align:right;color:${BRAND.textMuted};font-size:13px;">${formatCurrency(data.platformFee)}</td>
+            </tr>
+            <tr>
+                <td style="padding:6px 0;color:${BRAND.textMuted};font-size:13px;">Stripe processing</td>
+                <td style="padding:6px 0;text-align:right;color:${BRAND.textMuted};font-size:13px;">${formatCurrency(data.stripeFee || 0)}</td>
+            </tr>
+            ${data.taxAmount > 0 ? `
+            <tr>
+                <td style="padding:6px 0;color:${BRAND.textMuted};font-size:13px;">${escapeHtml(data.taxLabel || 'Tax')}</td>
+                <td style="padding:6px 0;text-align:right;color:${BRAND.textMuted};font-size:13px;">${formatCurrency(data.taxAmount)}</td>
+            </tr>` : ''}
+            <tr><td colspan="2" style="padding:8px 0;"><div style="border-top:1px solid ${BRAND.border};"></div></td></tr>
+            <tr>
+                <td style="padding:8px 0 0;color:${BRAND.text};font-size:16px;font-weight:700;">Total paid</td>
+                <td style="padding:8px 0 0;text-align:right;color:${BRAND.headerBg};font-size:18px;font-weight:800;">${formatCurrency(data.totalPaid)}</td>
+            </tr>
+        `;
 
         const body = `
-            <p style="font-size: 18px; margin: 0 0 16px;">Thanks for booking, ${data.athleteName}!</p>
-            <p style="color: #aaa; margin: 0 0 24px;">Here is your payment receipt.</p>
+            <p style="margin:0 0 16px;font-size:16px;">Hi ${escapeHtml(firstName)},</p>
+            <p style="margin:0 0 24px;color:${BRAND.text};">Your booking is confirmed and payment received. Here's your receipt — keep it for your records.</p>
 
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <p style="margin: 0 0 8px;"><strong>Sport:</strong> ${sportName}</p>
-                <p style="margin: 0 0 8px;"><strong>Trainer:</strong> ${data.trainerName}</p>
-                <p style="margin: 0 0 8px;"><strong>Date &amp; Time:</strong> ${dateStr}</p>
-                <p style="margin: 0;"><strong>Duration:</strong> ${data.durationMinutes} minutes</p>
-            </div>
+            ${infoCard([
+                { label: 'Sport', value: escapeHtml(sportName) },
+                { label: 'Trainer', value: escapeHtml(data.trainerName) },
+                { label: 'Date &amp; time', value: escapeHtml(dateStr) },
+                { label: 'Duration', value: `${data.durationMinutes} minutes` },
+                { label: 'Booking ID', value: `<span style="font-family:monospace;font-size:12px;color:${BRAND.textMuted};">${escapeHtml(data.bookingId)}</span>` },
+            ])}
 
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <h3 style="margin: 0 0 12px; color: #a3ff12; font-size: 16px;">Payment Breakdown</h3>
-                <table style="width: 100%; border-collapse: collapse; color: #fff;">
-                    <tr>
-                        <td style="padding: 6px 0;">Session Fee</td>
-                        <td style="padding: 6px 0; text-align: right;">${formatCurrency(data.sessionFee)}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 6px 0; color: #aaa;">Platform Fee (3%)</td>
-                        <td style="padding: 6px 0; text-align: right; color: #aaa;">${formatCurrency(data.platformFee)}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 6px 0; color: #aaa;">Stripe Processing (2.9% + $0.30)</td>
-                        <td style="padding: 6px 0; text-align: right; color: #aaa;">${formatCurrency(data.stripeFee || 0)}</td>
-                    </tr>
-                    ${data.taxAmount && data.taxAmount > 0 ? `
-                    <tr>
-                        <td style="padding: 6px 0; color: #aaa;">${data.taxLabel || 'Tax'}</td>
-                        <td style="padding: 6px 0; text-align: right; color: #aaa;">${formatCurrency(data.taxAmount)}</td>
-                    </tr>` : ''}
-                    <tr style="border-top: 1px solid #333;">
-                        <td style="padding: 10px 0; font-weight: bold; font-size: 16px;">Total Paid</td>
-                        <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 16px; color: #a3ff12;">${formatCurrency(data.totalPaid)}</td>
-                    </tr>
+            <div style="background:${BRAND.cardBg};border:1px solid ${BRAND.border};border-radius:12px;padding:18px 20px;margin:0 0 20px;">
+                <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${BRAND.textMuted};">Payment breakdown</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    ${breakdownRows}
                 </table>
             </div>
 
-            <p style="color: #888; font-size: 13px;">
-                Funds are held in escrow until your session completes. If you need to cancel, visit your AirTrainr dashboard.
-            </p>
+            ${emailButton('View Booking', `${APP_URL}/dashboard/bookings`)}
+
+            <div style="background:#f1f5f9;border-left:3px solid ${BRAND.primary};padding:12px 16px;border-radius:6px;margin:24px 0 0;">
+                <p style="margin:0;font-size:13px;color:${BRAND.textMuted};line-height:1.6;">
+                    <strong style="color:${BRAND.text};">Heads up:</strong> Funds are held in escrow until your session completes.
+                    If you need to cancel, please do so from your dashboard at least 24 hours before the session.
+                </p>
+            </div>
         `;
 
         const info = await t.sendMail({
-            from: '"AirTrainr" <contact@airtrainr.com>',
+            from: `"AirTrainr" <${SUPPORT_EMAIL}>`,
             to: data.athleteEmail,
-            subject: `Receipt: ${sportName} Session with ${data.trainerName}`,
-            html: wrapHtml('Payment Receipt', body),
+            subject: `Receipt: ${sportName} session with ${data.trainerName}`,
+            html: emailLayout({
+                title: 'Payment received',
+                preheader: `Your ${sportName} session with ${data.trainerName} is confirmed. Total paid: ${formatCurrency(data.totalPaid)}.`,
+                body,
+            }),
         });
 
         if (process.env.NODE_ENV !== 'production') {
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            console.log(`[email] Athlete receipt preview: ${previewUrl}`);
+            console.log(`[email] Athlete receipt preview:`, nodemailer.getTestMessageUrl(info));
         }
         console.log(`[email] Athlete receipt sent to ${data.athleteEmail}`);
     } catch (error) {
@@ -150,9 +321,78 @@ export async function sendAthleteReceipt(data: BookingReceiptData): Promise<void
     }
 }
 
-// ── Send trainer receipt ──
+// ──────────────────────────────────────────────────────────────────────────────
+// Trainer booking notification
+// ──────────────────────────────────────────────────────────────────────────────
 
-// ── Send contact form notification ──
+export async function sendTrainerReceipt(data: BookingReceiptData): Promise<void> {
+    try {
+        const t = await getTransporter();
+        const sportName = formatSport(data.sport);
+        const dateStr = formatDate(data.scheduledAt);
+        const firstName = (data.trainerName || '').split(' ')[0] || 'there';
+
+        const body = `
+            <p style="margin:0 0 16px;font-size:16px;">Hi ${escapeHtml(firstName)},</p>
+            <p style="margin:0 0 24px;color:${BRAND.text};">You've got a new booking. Payment has cleared and funds are now held in escrow.</p>
+
+            ${infoCard([
+                { label: 'Sport', value: escapeHtml(sportName) },
+                { label: 'Athlete', value: escapeHtml(data.athleteName) },
+                { label: 'Date &amp; time', value: escapeHtml(dateStr) },
+                { label: 'Duration', value: `${data.durationMinutes} minutes` },
+            ])}
+
+            <div style="background:${BRAND.cardBg};border:1px solid ${BRAND.border};border-radius:12px;padding:18px 20px;margin:0 0 20px;">
+                <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${BRAND.textMuted};">Your earnings</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                        <td style="padding:6px 0;color:${BRAND.text};font-size:14px;">Session fee</td>
+                        <td style="padding:6px 0;text-align:right;color:${BRAND.text};font-size:14px;font-weight:600;">${formatCurrency(data.sessionFee)}</td>
+                    </tr>
+                    <tr><td colspan="2" style="padding:8px 0;"><div style="border-top:1px solid ${BRAND.border};"></div></td></tr>
+                    <tr>
+                        <td style="padding:8px 0 0;color:${BRAND.text};font-size:16px;font-weight:700;">You'll receive (100%)</td>
+                        <td style="padding:8px 0 0;text-align:right;color:${BRAND.success};font-size:18px;font-weight:800;">${formatCurrency(data.trainerPayout)}</td>
+                    </tr>
+                </table>
+                <p style="margin:14px 0 0;color:${BRAND.textDim};font-size:12px;line-height:1.5;">
+                    The athlete covered all fees on top (platform ${formatCurrency(data.platformFee)}, Stripe ${formatCurrency(data.stripeFee || 0)}${data.taxAmount > 0 ? `, ${escapeHtml(data.taxLabel || 'Tax')} ${formatCurrency(data.taxAmount)}` : ''}). Total charged: ${formatCurrency(data.totalPaid)}.
+                </p>
+            </div>
+
+            ${emailButton('Open Dashboard', `${APP_URL}/dashboard`)}
+
+            <div style="background:#f1f5f9;border-left:3px solid ${BRAND.primary};padding:12px 16px;border-radius:6px;margin:24px 0 0;">
+                <p style="margin:0;font-size:13px;color:${BRAND.textMuted};line-height:1.6;">
+                    <strong style="color:${BRAND.text};">Payout timing:</strong> Funds release to your Stripe account once you complete the session.
+                </p>
+            </div>
+        `;
+
+        const info = await t.sendMail({
+            from: `"AirTrainr" <${SUPPORT_EMAIL}>`,
+            to: data.trainerEmail,
+            subject: `New booking: ${sportName} with ${data.athleteName}`,
+            html: emailLayout({
+                title: 'You have a new booking',
+                preheader: `${data.athleteName} booked a ${sportName} session — ${formatCurrency(data.trainerPayout)} payout.`,
+                body,
+            }),
+        });
+
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[email] Trainer receipt preview:`, nodemailer.getTestMessageUrl(info));
+        }
+        console.log(`[email] Trainer receipt sent to ${data.trainerEmail}`);
+    } catch (error) {
+        console.error('[email] Failed to send trainer receipt:', error);
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Contact form notification (sent to admin)
+// ──────────────────────────────────────────────────────────────────────────────
 
 export interface ContactNotificationData {
     email: string;
@@ -165,47 +405,44 @@ export async function sendContactNotification(data: ContactNotificationData): Pr
     try {
         const t = await getTransporter();
         const timestamp = new Date().toLocaleString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            timeZoneName: 'short',
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
         });
 
         const body = `
-            <p style="font-size: 18px; margin: 0 0 16px;">New Contact Form Submission</p>
-            <p style="color: #aaa; margin: 0 0 24px;">Someone reached out via the AirTrainr contact form.</p>
+            <p style="margin:0 0 16px;font-size:16px;">New contact form submission</p>
+            <p style="margin:0 0 24px;color:${BRAND.textMuted};">Someone reached out via the AirTrainr contact form. Details below.</p>
 
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <p style="margin: 0 0 8px;"><strong>From:</strong> ${data.email}</p>
-                <p style="margin: 0 0 8px;"><strong>Subject:</strong> ${data.subject}</p>
-                <p style="margin: 0 0 8px;"><strong>User ID:</strong> ${data.userId || 'Guest (not logged in)'}</p>
-                <p style="margin: 0;"><strong>Submitted:</strong> ${timestamp}</p>
+            ${infoCard([
+                { label: 'From', value: `<a href="mailto:${escapeHtml(data.email)}" style="color:${BRAND.primaryDark};text-decoration:none;">${escapeHtml(data.email)}</a>` },
+                { label: 'Subject', value: escapeHtml(data.subject) },
+                { label: 'User', value: data.userId ? `<span style="font-family:monospace;font-size:12px;color:${BRAND.textMuted};">${escapeHtml(data.userId)}</span>` : '<em style="color:#94a3b8;">Guest (not logged in)</em>' },
+                { label: 'Received', value: escapeHtml(timestamp) },
+            ])}
+
+            <div style="background:${BRAND.cardBg};border:1px solid ${BRAND.border};border-radius:12px;padding:18px 20px;margin:0 0 20px;">
+                <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${BRAND.textMuted};">Message</p>
+                <p style="margin:0;white-space:pre-wrap;color:${BRAND.text};font-size:14px;line-height:1.6;">${escapeHtml(data.message)}</p>
             </div>
 
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <h3 style="margin: 0 0 12px; color: #a3ff12; font-size: 16px;">Message</h3>
-                <p style="margin: 0; white-space: pre-wrap; color: #ccc;">${data.message}</p>
-            </div>
-
-            <p style="color: #888; font-size: 13px;">
-                You can reply directly to ${data.email} or view all messages in the <a href="https://air-triner-web.vercel.app/admin/contacts" style="color: #a3ff12;">Admin Panel</a>.
-            </p>
+            ${emailButton('Reply', `mailto:${data.email}?subject=Re:%20${encodeURIComponent(data.subject)}`)}
+            ${emailButton('Open Admin Panel', `${APP_URL}/admin/contacts`, 'secondary')}
         `;
 
         const info = await t.sendMail({
-            from: '"AirTrainr Contact" <contact@airtrainr.com>',
-            to: 'contact@airtrainr.com',
+            from: `"AirTrainr Contact" <${SUPPORT_EMAIL}>`,
+            to: SUPPORT_EMAIL,
             replyTo: data.email,
-            subject: `[AirTrainr Contact] ${data.subject}`,
-            html: wrapHtml('Contact Form Message', body),
+            subject: `[Contact] ${data.subject}`,
+            html: emailLayout({
+                title: 'New contact message',
+                preheader: `${data.email}: ${data.subject}`,
+                body,
+            }),
         });
 
         if (process.env.NODE_ENV !== 'production') {
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            console.log(`[email] Contact notification preview: ${previewUrl}`);
+            console.log(`[email] Contact notification preview:`, nodemailer.getTestMessageUrl(info));
         }
         console.log(`[email] Contact notification sent for ${data.email}`);
     } catch (error) {
@@ -213,7 +450,9 @@ export async function sendContactNotification(data: ContactNotificationData): Pr
     }
 }
 
-// ── Send signup notification (admin alert when a new user joins) ──
+// ──────────────────────────────────────────────────────────────────────────────
+// Signup notification (sent to admin)
+// ──────────────────────────────────────────────────────────────────────────────
 
 export interface SignupNotificationData {
     email: string;
@@ -228,109 +467,47 @@ export async function sendSignupNotification(data: SignupNotificationData): Prom
     try {
         const t = await getTransporter();
         const timestamp = new Date().toLocaleString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            timeZoneName: 'short',
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
         });
         const fullName = `${data.firstName} ${data.lastName}`.trim();
         const roleLabel = data.role.charAt(0).toUpperCase() + data.role.slice(1);
-        const platformLabel = data.platform === 'web' ? 'Website' : 'Mobile App';
+        const platformLabel = data.platform === 'web' ? 'Website' : 'Mobile app';
 
         const body = `
-            <p style="font-size: 18px; margin: 0 0 16px;">New ${roleLabel} Signup</p>
-            <p style="color: #aaa; margin: 0 0 24px;">A new ${data.role} just created an AirTrainr account.</p>
+            <p style="margin:0 0 16px;font-size:16px;">New ${escapeHtml(roleLabel.toLowerCase())} just joined</p>
+            <p style="margin:0 0 24px;color:${BRAND.textMuted};">Someone created an AirTrainr account. Snapshot below.</p>
 
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <p style="margin: 0 0 8px;"><strong>Name:</strong> ${fullName || '(not provided)'}</p>
-                <p style="margin: 0 0 8px;"><strong>Email:</strong> ${data.email}</p>
-                <p style="margin: 0 0 8px;"><strong>Role:</strong> ${roleLabel}</p>
-                <p style="margin: 0 0 8px;"><strong>Signed up on:</strong> ${platformLabel}</p>
-                <p style="margin: 0 0 8px;"><strong>User ID:</strong> ${data.userId}</p>
-                <p style="margin: 0;"><strong>Time:</strong> ${timestamp}</p>
-            </div>
+            ${infoCard([
+                { label: 'Name', value: escapeHtml(fullName || '(not provided)') },
+                { label: 'Email', value: `<a href="mailto:${escapeHtml(data.email)}" style="color:${BRAND.primaryDark};text-decoration:none;">${escapeHtml(data.email)}</a>` },
+                { label: 'Role', value: `<span style="display:inline-block;padding:2px 10px;background:${data.role === 'trainer' ? '#fef3c7' : '#dbeafe'};color:${data.role === 'trainer' ? '#92400e' : '#1e40af'};border-radius:999px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(roleLabel)}</span>` },
+                { label: 'Platform', value: escapeHtml(platformLabel) },
+                { label: 'User ID', value: `<span style="font-family:monospace;font-size:12px;color:${BRAND.textMuted};">${escapeHtml(data.userId)}</span>` },
+                { label: 'Signed up', value: escapeHtml(timestamp) },
+            ])}
 
-            <p style="color: #888; font-size: 13px;">
-                ${data.role === 'trainer'
-                    ? 'Review the trainer profile in the <a href="https://air-triner-web.vercel.app/admin/trainers" style="color: #a3ff12;">Admin Panel</a> to approve them once their profile is complete.'
-                    : 'View the athlete in the <a href="https://air-triner-web.vercel.app/admin" style="color: #a3ff12;">Admin Panel</a>.'}
-            </p>
+            ${data.role === 'trainer'
+                ? emailButton('Review Trainer', `${APP_URL}/admin/trainers`)
+                : emailButton('View Athlete', `${APP_URL}/admin/athletes`)}
         `;
 
         const info = await t.sendMail({
-            from: '"AirTrainr" <contact@airtrainr.com>',
-            to: 'contact@airtrainr.com',
-            subject: `[AirTrainr] New ${roleLabel} signup — ${fullName || data.email}`,
-            html: wrapHtml(`New ${roleLabel} Signup`, body),
+            from: `"AirTrainr" <${SUPPORT_EMAIL}>`,
+            to: SUPPORT_EMAIL,
+            subject: `New ${roleLabel.toLowerCase()} signup — ${fullName || data.email}`,
+            html: emailLayout({
+                title: `New ${roleLabel.toLowerCase()} signup`,
+                preheader: `${fullName || data.email} joined via ${platformLabel.toLowerCase()}`,
+                body,
+            }),
         });
 
         if (process.env.NODE_ENV !== 'production') {
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            console.log(`[email] Signup notification preview: ${previewUrl}`);
+            console.log(`[email] Signup notification preview:`, nodemailer.getTestMessageUrl(info));
         }
         console.log(`[email] Signup notification sent for ${data.email}`);
     } catch (error) {
         console.error('[email] Failed to send signup notification:', error);
-    }
-}
-
-// ── Send trainer receipt ──
-
-export async function sendTrainerReceipt(data: BookingReceiptData): Promise<void> {
-    try {
-        const t = await getTransporter();
-        const sportName = formatSport(data.sport);
-        const dateStr = formatDate(data.scheduledAt);
-
-        const body = `
-            <p style="font-size: 18px; margin: 0 0 16px;">New booking paid, ${data.trainerName}!</p>
-            <p style="color: #aaa; margin: 0 0 24px;">An athlete has completed payment for an upcoming session.</p>
-
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <p style="margin: 0 0 8px;"><strong>Sport:</strong> ${sportName}</p>
-                <p style="margin: 0 0 8px;"><strong>Athlete:</strong> ${data.athleteName}</p>
-                <p style="margin: 0 0 8px;"><strong>Date &amp; Time:</strong> ${dateStr}</p>
-                <p style="margin: 0;"><strong>Duration:</strong> ${data.durationMinutes} minutes</p>
-            </div>
-
-            <div style="background: #1a1a1a; border-radius: 12px; padding: 20px; margin: 0 0 20px;">
-                <h3 style="margin: 0 0 12px; color: #a3ff12; font-size: 16px;">Your Earnings</h3>
-                <table style="width: 100%; border-collapse: collapse; color: #fff;">
-                    <tr>
-                        <td style="padding: 6px 0;">Session Fee</td>
-                        <td style="padding: 6px 0; text-align: right;">${formatCurrency(data.sessionFee)}</td>
-                    </tr>
-                    <tr style="border-top: 1px solid #333;">
-                        <td style="padding: 10px 0; font-weight: bold; font-size: 16px;">You'll Receive (100%)</td>
-                        <td style="padding: 10px 0; text-align: right; font-weight: bold; font-size: 16px; color: #a3ff12;">${formatCurrency(data.trainerPayout)}</td>
-                    </tr>
-                </table>
-                <p style="margin: 14px 0 0; color: #888; font-size: 12px;">
-                    Athlete covered all fees: platform ${formatCurrency(data.platformFee)}, Stripe ${formatCurrency(data.stripeFee || 0)}${data.taxAmount && data.taxAmount > 0 ? `, ${data.taxLabel || 'Tax'} ${formatCurrency(data.taxAmount)}` : ''}. Total charged to athlete: ${formatCurrency(data.totalPaid)}.
-                </p>
-            </div>
-
-            <p style="color: #888; font-size: 13px;">
-                Funds are held in escrow and will be released after the session completes. View details in your AirTrainr dashboard.
-            </p>
-        `;
-
-        const info = await t.sendMail({
-            from: '"AirTrainr" <contact@airtrainr.com>',
-            to: data.trainerEmail,
-            subject: `Booking Paid: ${sportName} Session with ${data.athleteName}`,
-            html: wrapHtml('Booking Payment Confirmation', body),
-        });
-
-        if (process.env.NODE_ENV !== 'production') {
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            console.log(`[email] Trainer receipt preview: ${previewUrl}`);
-        }
-        console.log(`[email] Trainer receipt sent to ${data.trainerEmail}`);
-    } catch (error) {
-        console.error('[email] Failed to send trainer receipt:', error);
     }
 }

@@ -159,6 +159,19 @@ export async function registerUser(data: {
         throw new Error('You must be at least 18 years old to register');
     }
 
+    // Duplicate-email guard. Supabase auth.signUp returns an obfuscated fake
+    // user for existing emails (anti-enumeration), so we check public.users
+    // explicitly. Catches client pre-check bypass and protects against same
+    // email re-registering with a different role.
+    const { data: existingByEmail } = await supabase
+        .from('users')
+        .select('id, role')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+    if (existingByEmail) {
+        throw new Error('An account with this email already exists. Please log in instead.');
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
         password: data.password,
@@ -170,9 +183,10 @@ export async function registerUser(data: {
 
     const authUserId = authData.user.id;
 
+    // Upsert: tolerate a DB trigger having already inserted the row.
     const { error: userError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
             id: authUserId,
             email: cleanEmail,
             password_hash: 'auth_handled_by_supabase',
@@ -181,12 +195,13 @@ export async function registerUser(data: {
             last_name: data.lastName,
             date_of_birth: data.dateOfBirth,
             email_verified: false,
-        })
-        .select()
-        .single();
+        }, { onConflict: 'id' });
 
     if (userError) {
-        console.error('Manual insert to users table failed:', userError);
+        const msg = userError.message || JSON.stringify(userError);
+        console.error('[auth] users upsert failed:', msg);
+        try { await supabase.auth.signOut(); } catch {}
+        throw new Error('Failed to create profile. Please try again.');
     }
 
     const { data: confirmedUser } = await supabase

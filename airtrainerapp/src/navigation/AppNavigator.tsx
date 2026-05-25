@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Platform, Animated, Easing, Linking } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,6 +15,7 @@ import CustomDrawerContent from '../components/CustomDrawerContent';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 
 // Dashboard Screens
 import DiscoverScreen from '../screens/dashboard/DiscoverScreen';
@@ -45,9 +46,29 @@ import AthleteOffersScreen from '../screens/dashboard/AthleteOffersScreen';
 import BookingDetailScreen from '../screens/dashboard/BookingDetailScreen';
 
 const AuthStack = createNativeStackNavigator();
+const ResetStack = createNativeStackNavigator();
 const MainStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
+
+/** Extract code param from a deep-link URL (handles both ?code= and #code=) */
+function extractResetCode(url: string): string | null {
+    const match = url.match(/[?&#]code=([^&#]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** Thin navigator shown only during password-reset flow */
+function ResetPasswordNavigator({ code, onDone }: { code: string; onDone: () => void }) {
+    return (
+        <ResetStack.Navigator screenOptions={{ headerShown: false }}>
+            <ResetStack.Screen
+                name="ResetPassword"
+                component={ResetPasswordScreen}
+                initialParams={{ code, onDone }}
+            />
+        </ResetStack.Navigator>
+    );
+}
 
 function AuthNavigator() {
     return (
@@ -365,9 +386,41 @@ function PulsingDot() {
 
 export default function AppNavigator() {
     const { isAuthenticated, isLoading } = useAuth();
+    const [pendingResetCode, setPendingResetCode] = useState<string | null>(null);
+
+    // ── Deep-link handler for password reset ──
+    useEffect(() => {
+        const handleUrl = (url: string | null) => {
+            if (!url) return;
+            // Match airtrainr://reset-password?code=XXX
+            if (url.includes('reset-password')) {
+                const code = extractResetCode(url);
+                if (code) setPendingResetCode(code);
+            }
+        };
+
+        // App opened from killed state via deep link
+        Linking.getInitialURL().then(handleUrl).catch(() => null);
+
+        // App already running when deep link arrives
+        const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+        return () => sub.remove();
+    }, []);
 
     if (isLoading) {
         return <PulsingDot />;
+    }
+
+    // Password-reset deep link → show dedicated reset screen (bypasses auth state)
+    if (pendingResetCode) {
+        return (
+            <NavigationContainer key="reset">
+                <ResetPasswordNavigator
+                    code={pendingResetCode}
+                    onDone={() => setPendingResetCode(null)}
+                />
+            </NavigationContainer>
+        );
     }
 
     return (

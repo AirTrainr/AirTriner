@@ -149,7 +149,7 @@ export default function AdminDashboardPage() {
                                 const monthFull = ["January","February","March","April","May","June","July","August","September","October","November","December"][i];
                                 const tooltip = `${monthFull}: ${aCount} athletes + ${tCount} trainers`;
                                 return (
-                                    <div key={month} className="flex-1 flex justify-center group" title={tooltip}>
+                                    <div key={month} className="flex-1 flex justify-center items-end group h-full" title={tooltip}>
                                         <div
                                             style={{ height: `${colHeight}%` }}
                                             className="w-full max-w-10 rounded-t-md overflow-hidden transition-all duration-500 flex flex-col"

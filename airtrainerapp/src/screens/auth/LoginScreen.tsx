@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -14,10 +14,11 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function LoginScreen({ navigation }: any) {
-    const { login } = useAuth();
+    const { login, signInWithGoogle } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -40,9 +41,30 @@ export default function LoginScreen({ navigation }: any) {
             console.log('[Login] Success');
         } catch (error: any) {
             console.error('[Login] Error:', error?.message, error);
-            setLoginError(error?.message || 'Login failed. Please try again.');
+            const raw = error?.message || 'Login failed. Please try again.';
+            const friendly = /invalid login credentials/i.test(raw)
+                ? 'Incorrect email or password. Please try again.'
+                : /email not confirmed/i.test(raw)
+                    ? 'Please verify your email before logging in. Check your inbox.'
+                    : raw;
+            setLoginError(friendly);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        setLoginError(null);
+        setIsGoogleLoading(true);
+        try {
+            const result = await signInWithGoogle();
+            if (!result.ok && result.error && result.error !== 'Sign-in cancelled') {
+                setLoginError(result.error);
+            }
+        } catch (err: any) {
+            setLoginError(err?.message || 'Google sign-in failed');
+        } finally {
+            setIsGoogleLoading(false);
         }
     };
 
@@ -141,14 +163,16 @@ export default function LoginScreen({ navigation }: any) {
                         style={({ pressed }) => [
                             styles.socialButton,
                             pressed && styles.socialButtonPressed,
+                            (isGoogleLoading || isLoading) && { opacity: 0.6 },
                         ]}
-                        onPress={() =>
-                            Alert.alert('Coming Soon', 'Google sign-in will be available soon.')
-                        }
+                        onPress={handleGoogleSignIn}
+                        disabled={isGoogleLoading || isLoading}
                         accessibilityLabel="Continue with Google"
                     >
                         <Ionicons name="logo-google" size={20} color={Colors.primary} />
-                        <Text style={styles.socialButtonText}>Continue with Google</Text>
+                        <Text style={styles.socialButtonText}>
+                            {isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}
+                        </Text>
                     </Pressable>
 
                 </View>

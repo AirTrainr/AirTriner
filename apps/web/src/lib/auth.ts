@@ -206,6 +206,18 @@ export async function registerUser(data: {
         throw new Error('You must be at least 18 years old to register')
     }
 
+    // Duplicate-email guard (defense-in-depth — the client step-1 check can be
+    // skipped, and Supabase's auth.signUp returns an obfuscated fake user for
+    // existing emails instead of an error, so we re-check here regardless of role).
+    const { data: existingByEmail } = await supabase
+        .from('users')
+        .select('id, role')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+    if (existingByEmail) {
+        throw new Error('An account with this email already exists. Please log in instead.');
+    }
+
     // 1. Sign up with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -218,10 +230,12 @@ export async function registerUser(data: {
 
     const authUserId = authData.user.id;
 
-    // 2. Insert into public.users table (links to auth.users.id)
-    const { data: newUser, error: userError } = await supabase
+    // 2. Upsert into public.users (links to auth.users.id). Upsert tolerates the
+    //    case where a DB trigger has already created the row, instead of failing
+    //    on a duplicate-id conflict.
+    const { error: userError } = await supabase
         .from('users')
-        .insert({
+        .upsert({
             id: authUserId,
             email: cleanEmail,
             password_hash: "auth_handled_by_supabase",
@@ -231,16 +245,18 @@ export async function registerUser(data: {
             date_of_birth: data.dateOfBirth,
             email_verified: false,
             is_approved: false,
-        })
-        .select()
-        .single();
+        }, { onConflict: 'id' });
 
-    if (userError || !newUser) {
-        // Log the error but don't strictly fail if it might have been created by a trigger
-        console.error("Manual insert to users table failed:", userError);
+    if (userError) {
+        // Surface the actual reason — RLS denial, unique-constraint, etc.
+        const msg = userError.message || JSON.stringify(userError);
+        console.error('[auth] users upsert failed:', msg);
+        // Roll back the auth.users row so the email isn't permanently taken
+        try { await supabase.auth.signOut(); } catch {}
+        throw new Error('Failed to create profile. Please try again.');
     }
 
-    // Proceed assuming it's inserted by trigger or manually
+    // Confirm the row landed
     const { data: confirmedUser } = await supabase
         .from('users')
         .select('*')

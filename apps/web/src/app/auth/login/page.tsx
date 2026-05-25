@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import { loginUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/components/ui/Toast";
 
@@ -14,8 +14,9 @@ function LoginForm() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    // Fix A: functional rememberMe state
     const [rememberMe, setRememberMe] = useState(false);
+    const [capsLockOn, setCapsLockOn] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
 
     const handleOAuth = async (provider: "google") => {
         const { error } = await supabase.auth.signInWithOAuth({
@@ -30,20 +31,29 @@ function LoginForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setErrorMsg("");
 
         try {
             const user = await loginUser(email, password);
 
-            // Fix A: set long-lived cookie when rememberMe is checked
             if (rememberMe && typeof document !== "undefined") {
                 document.cookie = `airtrainr_token=1; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
             }
 
-            // Fix C: honour ?returnTo redirect after login
             const returnTo = searchParams.get("returnTo");
             router.push(returnTo || (user.role === "admin" ? "/admin" : "/dashboard"));
         } catch (err: unknown) {
-            toast.error(err instanceof Error ? err.message : "Login failed");
+            const raw = err instanceof Error ? err.message : "Login failed";
+            // Friendlier messages for common Supabase errors
+            const friendly = /invalid login credentials/i.test(raw)
+                ? "Incorrect email or password. Please try again."
+                : /email not confirmed/i.test(raw)
+                    ? "Please verify your email before logging in. Check your inbox."
+                    : /suspended/i.test(raw)
+                        ? raw
+                        : raw;
+            setErrorMsg(friendly);
+            toast.error(friendly);
         } finally {
             setLoading(false);
         }
@@ -140,7 +150,8 @@ function LoginForm() {
                                     autoComplete="current-password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
+                                    onKeyUp={(e) => setCapsLockOn(e.getModifierState && e.getModifierState("CapsLock"))}
+                                    placeholder="Enter your password"
                                     required
                                     style={{
                                         width: "100%", padding: "16px", paddingRight: "48px", borderRadius: "12px", border: "1px solid var(--gray-800)",
@@ -152,12 +163,25 @@ function LoginForm() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
                                     style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--gray-500)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                                 >
                                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                 </button>
                             </div>
+                            {capsLockOn && (
+                                <p style={{ fontSize: "12px", color: "#f59e0b", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                    <AlertCircle size={12} /> Caps Lock is on
+                                </p>
+                            )}
                         </div>
+
+                        {errorMsg && (
+                            <div style={{ marginBottom: "20px", padding: "12px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "10px", display: "flex", alignItems: "center", gap: "8px" }}>
+                                <AlertCircle size={16} style={{ color: "#ef4444", flexShrink: 0 }} />
+                                <p style={{ fontSize: "13px", color: "#fca5a5", margin: 0 }}>{errorMsg}</p>
+                            </div>
+                        )}
 
                         {/* Fix A: connected rememberMe checkbox */}
                         <div style={{ marginBottom: "32px", display: "flex", alignItems: "center", gap: "10px" }}>

@@ -78,10 +78,10 @@ export async function POST(req: NextRequest) {
                               currency: stripeCurrency(),
                               product_data: {
                                   name: 'AirTrainr Coach — Annual',
-                                  description: 'Full access: bookings, messaging, payments & analytics (Save $50/yr)',
+                                  description: 'Full access: bookings, messaging, payments & analytics (Save $100/yr)',
                               },
                               recurring: { interval: 'year' },
-                              unit_amount: 25000, // $250.00
+                              unit_amount: 20000, // $200.00
                           },
                           quantity: 1,
                       };

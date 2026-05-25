@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import { Config } from '../../lib/config';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import ScreenWrapper from '../../components/ui/ScreenWrapper';
 import Input from '../../components/ui/Input';
@@ -12,23 +11,20 @@ import Button from '../../components/ui/Button';
 // Throttle resets to keep users from blowing past Supabase's built-in SMTP
 // limit (4 emails / hour per IP) which surfaces as a confusing
 // "email rate limit exceeded" the next time they try.
-const COOLDOWN_SECONDS = 60;
+const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function ForgotPasswordScreen({ navigation }: any) {
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [cooldownRemaining, setCooldownRemaining] = useState(0);
-    const cooldownUntilRef = useRef(0);
+    const [cooldown, setCooldown] = useState(0);
 
     useEffect(() => {
-        const id = setInterval(() => {
-            const remaining = Math.max(0, Math.ceil((cooldownUntilRef.current - Date.now()) / 1000));
-            setCooldownRemaining(remaining);
-        }, 1000);
-        return () => clearInterval(id);
-    }, []);
+        if (cooldown <= 0) return;
+        const t = setTimeout(() => setCooldown(c => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [cooldown]);
 
     const handleSendReset = async () => {
         if (!email.trim()) {
@@ -39,8 +35,8 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             setError('Please enter a valid email address');
             return;
         }
-        if (cooldownRemaining > 0) {
-            setError(`Please wait ${cooldownRemaining}s before requesting another link`);
+        if (cooldown > 0) {
+            setError(`Please wait ${cooldown}s before requesting another link`);
             return;
         }
 
@@ -48,20 +44,20 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         setError(null);
 
         try {
-            // Land the email link on the web app's reset page — the mobile app
-            // has no in-app recovery handler yet, and the web page is already
-            // wired to update the password and redirect to login.
-            const redirectTo = `${Config.appUrl.replace(/\/$/, '')}/auth/reset-password`;
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-                email.trim().toLowerCase(),
-                { redirectTo }
-            );
+            // Deep-link the email so it opens the in-app ResetPasswordScreen
+            // instead of bouncing the user to the web — the app handles the
+            // PKCE exchange itself.
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+                redirectTo: 'airtrainr://reset-password',
+            });
             if (resetError) throw resetError;
-            cooldownUntilRef.current = Date.now() + COOLDOWN_SECONDS * 1000;
-            setCooldownRemaining(COOLDOWN_SECONDS);
             setSent(true);
+            setCooldown(RESEND_COOLDOWN_SECONDS);
         } catch (err: unknown) {
             const raw = err instanceof Error ? err.message : '';
+            // Supabase surfaces rate-limit failures with this exact phrase.
+            // Translate to something the user can act on instead of dumping
+            // the backend string — the IP-level limit resets after ~1 hour.
             if (/rate limit/i.test(raw)) {
                 setError(
                     'Too many reset attempts from this network. Please wait about an hour, or try again from a different connection.'
@@ -102,7 +98,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 </Animated.View>
 
                 {sent ? (
-                    /* Success State with animated checkmark */
+                    /* Success State with animated checkmark + resend */
                     <Animated.View entering={FadeInDown.duration(250).delay(30)} style={styles.successContainer}>
                         <View style={styles.successIconOuter}>
                             <View style={styles.successIconInner}>
@@ -113,15 +109,41 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                         <Text style={styles.successMessage}>
                             We've sent a password reset link to{'\n'}
                             <Text style={styles.successEmail}>{email}</Text>
-                            {'\n\n'}It may take a few minutes to arrive.
                         </Text>
+
+                        <View style={styles.tipsBox}>
+                            <Text style={styles.tipsTitle}>Didn&apos;t receive the email?</Text>
+                            <Text style={styles.tipsItem}>• Check your spam or junk folder</Text>
+                            <Text style={styles.tipsItem}>• Make sure the email is correct</Text>
+                            <Text style={styles.tipsItem}>• Links expire after 1 hour</Text>
+                        </View>
+
                         <View style={styles.successAction}>
                             <Button
-                                title="Back to Sign In"
-                                onPress={() => navigation.goBack()}
-                                variant="outline"
+                                title={
+                                    isLoading
+                                        ? 'Resending...'
+                                        : cooldown > 0
+                                            ? `Resend in ${cooldown}s`
+                                            : 'Resend Email'
+                                }
+                                onPress={handleSendReset}
+                                loading={isLoading}
+                                disabled={isLoading || cooldown > 0}
                             />
                         </View>
+                        <Pressable
+                            onPress={() => { setSent(false); setEmail(''); setError(null); setCooldown(0); }}
+                            style={({ pressed }) => [styles.linkButton, pressed && { opacity: 0.7 }]}
+                        >
+                            <Text style={styles.linkButtonText}>Use a different email</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => navigation.goBack()}
+                            style={({ pressed }) => [styles.linkButton, pressed && { opacity: 0.7 }]}
+                        >
+                            <Text style={styles.linkButtonTextSecondary}>Back to Sign In</Text>
+                        </Pressable>
                     </Animated.View>
                 ) : (
                     /* Form */
@@ -149,13 +171,13 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
                         <Button
                             title={
-                                cooldownRemaining > 0
-                                    ? `Try again in ${cooldownRemaining}s`
+                                cooldown > 0
+                                    ? `Try again in ${cooldown}s`
                                     : 'Send Reset Link'
                             }
                             onPress={handleSendReset}
                             loading={isLoading}
-                            disabled={isLoading || cooldownRemaining > 0}
+                            disabled={isLoading || cooldown > 0}
                             size="lg"
                         />
                     </Animated.View>
@@ -278,7 +300,43 @@ const styles = StyleSheet.create({
         fontWeight: FontWeight.semibold,
     },
     successAction: {
-        marginTop: Spacing.xxxl,
+        marginTop: Spacing.xl,
         width: '100%',
+    },
+    tipsBox: {
+        width: '100%',
+        marginTop: Spacing.xl,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        backgroundColor: Colors.surface,
+    },
+    tipsTitle: {
+        fontSize: FontSize.sm,
+        fontWeight: FontWeight.semibold,
+        color: Colors.text,
+        marginBottom: Spacing.sm,
+    },
+    tipsItem: {
+        fontSize: FontSize.xs,
+        color: Colors.textSecondary,
+        lineHeight: 18,
+    },
+    linkButton: {
+        marginTop: Spacing.md,
+        paddingVertical: Spacing.sm,
+        minHeight: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    linkButtonText: {
+        fontSize: FontSize.sm,
+        color: Colors.primary,
+        fontWeight: FontWeight.semibold,
+    },
+    linkButtonTextSecondary: {
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
     },
 });

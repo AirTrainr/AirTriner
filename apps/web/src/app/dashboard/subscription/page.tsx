@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const FOUNDING_50_MAX = 50;
-const TRIAL_DAYS = 30;
+const TRIAL_DAYS = 90;
 
 type SubStatus = "trial" | "active" | "expired" | "cancelled";
 
@@ -413,11 +413,11 @@ export default function SubscriptionPage() {
                                     <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">Annual</span>
                                 </div>
                                 <div className="flex items-end gap-1.5">
-                                    <span className="text-5xl font-black text-text-main tracking-tighter">$250</span>
+                                    <span className="text-5xl font-black text-text-main tracking-tighter">$200</span>
                                     <span className="text-text-main/40 font-medium mb-2 text-sm">/year</span>
                                 </div>
                                 <p className="text-primary/80 text-xs font-bold mt-2">
-                                    Save $50 vs monthly — ~$20.83/mo
+                                    Save $100 vs monthly — ~$16.67/mo
                                 </p>
                             </div>
                             <button

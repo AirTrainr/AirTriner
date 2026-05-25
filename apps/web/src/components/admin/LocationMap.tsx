@@ -232,7 +232,7 @@ export default function LocationMap({ pins, title = "Location Heatmap", subtitle
                 }
             `}</style>
 
-            <div className="relative rounded-[24px] overflow-hidden bg-[#0c0e14] border border-white/[0.06]">
+            <div className="relative isolate rounded-[24px] overflow-hidden bg-[#0c0e14] border border-white/[0.06]">
 
                 {/* ─── Header ─── */}
                 <div className="relative z-10 flex items-center justify-between px-6 py-4 shrink-0">

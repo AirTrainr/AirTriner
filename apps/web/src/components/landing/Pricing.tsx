@@ -276,7 +276,7 @@ export default function Pricing() {
                                 marginBottom: "16px",
                             }}
                         >
-                            30-day free trial
+                            90-day free trial
                         </div>
 
                         <div
@@ -329,7 +329,7 @@ export default function Pricing() {
                                         lineHeight: 1,
                                     }}
                                 >
-                                    $250
+                                    $200
                                 </span>
                                 <span
                                     style={{
@@ -350,7 +350,7 @@ export default function Pricing() {
                                 marginBottom: "32px",
                             }}
                         >
-                            Save $50 with the annual plan
+                            Save $100 with the annual plan
                         </p>
 
                         <ul

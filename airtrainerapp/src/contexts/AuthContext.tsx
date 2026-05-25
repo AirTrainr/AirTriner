@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AuthUser, loginUser, registerUser, logoutUser, getCurrentUser } from '../lib/auth';
 import { supabase } from '../lib/supabase';
+import { signInWithGoogle as runGoogleSignIn } from '../lib/googleAuth';
 
 interface AuthContextType {
     user: AuthUser | null;
     isLoading: boolean;
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<void>;
+    signInWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
     register: (data: {
         email: string;
         password: string;
@@ -79,6 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const signInWithGoogle = async () => {
+        isManualAuthRef.current = true;
+        try {
+            const result = await runGoogleSignIn();
+            if (!result.ok) return result;
+            const authUser = await getCurrentUser();
+            if (authUser) setUser(authUser);
+            return { ok: true };
+        } catch (err) {
+            return { ok: false, error: err instanceof Error ? err.message : 'Google sign-in failed' };
+        } finally {
+            isManualAuthRef.current = false;
+        }
+    };
+
     const register = async (data: {
         email: string;
         password: string;
@@ -127,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 isLoading,
                 isAuthenticated: !!user,
                 login,
+                signInWithGoogle,
                 register,
                 logout,
                 refreshUser,
