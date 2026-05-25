@@ -3,11 +3,13 @@ import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight } from '../../theme';
 import ScreenWrapper from '../../components/ui/ScreenWrapper';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import LocationAutocomplete, { LocationValue } from '../../components/LocationAutocomplete';
+import PasswordStrengthMeter, { isPasswordValid } from '../../components/auth/PasswordStrengthMeter';
 
 const SPORTS = [
     { name: 'Hockey', emoji: '🏒' }, { name: 'Baseball', emoji: '⚾' },
@@ -79,15 +81,7 @@ export default function RegisterScreen({ navigation }: any) {
         if (!email.trim()) newErrors.email = 'Required';
         else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Invalid email';
         if (!password) newErrors.password = 'Required';
-        else if (password.length < 12) newErrors.password = 'Password must be at least 12 characters long.';
-        else if (
-            !/[a-z]/.test(password) ||
-            !/[A-Z]/.test(password) ||
-            !/\d/.test(password) ||
-            !/[^A-Za-z0-9]/.test(password)
-        ) {
-            newErrors.password = 'Password must include uppercase, lowercase, a number, and a symbol.';
-        }
+        else if (!isPasswordValid(password)) newErrors.password = 'Password does not meet all requirements';
         if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords don\'t match';
         if (!dateOfBirth.trim()) newErrors.dateOfBirth = 'Required';
         else {
@@ -123,9 +117,40 @@ export default function RegisterScreen({ navigation }: any) {
         return true;
     };
 
-    const handleNext = () => {
-        if (step === 1 && validateStep1()) setStep(2);
-        else if (step === 2 && validateStep2()) setStep(3);
+    const handleNext = async () => {
+        if (step === 1) {
+            if (!validateStep1()) return;
+            // Pre-check: don't let the user finish 3 steps only to find out the
+            // email is already taken at final submit.
+            setIsLoading(true);
+            try {
+                const { data: existing } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('email', email.toLowerCase().trim())
+                    .maybeSingle();
+                if (existing) {
+                    setErrors(e => ({ ...e, email: 'An account with this email already exists' }));
+                    Alert.alert(
+                        'Email already registered',
+                        'Try logging in with this email instead.',
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Log in', onPress: () => navigation.navigate('Login') },
+                        ],
+                    );
+                    return;
+                }
+            } catch (err) {
+                // Fall through — final signUp will catch duplicates as fallback.
+                console.warn('[register] email pre-check failed:', err);
+            } finally {
+                setIsLoading(false);
+            }
+            setStep(2);
+        } else if (step === 2 && validateStep2()) {
+            setStep(3);
+        }
     };
 
     const handleRegister = async () => {
@@ -294,24 +319,28 @@ export default function RegisterScreen({ navigation }: any) {
                         <Input
                             label="Password"
                             icon="lock-closed-outline"
-                            placeholder="Min 8 characters"
+                            placeholder="Choose a strong password"
                             value={password}
                             onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: '' })); }}
                             error={errors.password}
                             isPassword
                         />
+                        <PasswordStrengthMeter password={password} />
                     </Animated.View>
 
                     <Animated.View entering={FadeInDown.duration(250).delay(60)}>
                         <Input
                             label="Confirm Password"
                             icon="lock-closed-outline"
-                            placeholder="Repeat password"
+                            placeholder="Re-enter your password"
                             value={confirmPassword}
                             onChangeText={(t) => { setConfirmPassword(t); setErrors((e) => ({ ...e, confirmPassword: '' })); }}
                             error={errors.confirmPassword}
                             isPassword
                         />
+                        {confirmPassword.length > 0 && password === confirmPassword && (
+                            <Text style={styles.matchOk}>✓ Passwords match</Text>
+                        )}
                     </Animated.View>
 
                     <Animated.View entering={FadeInDown.duration(250).delay(60)}>
@@ -603,6 +632,13 @@ const styles = StyleSheet.create({
         fontSize: FontSize.xs,
         color: Colors.textTertiary,
         marginTop: -Spacing.sm,
+    },
+    matchOk: {
+        fontSize: FontSize.xs,
+        color: Colors.success,
+        marginTop: -Spacing.xs,
+        marginBottom: Spacing.sm,
+        fontWeight: FontWeight.medium,
     },
 
     // Sports grid - larger cards with icon background

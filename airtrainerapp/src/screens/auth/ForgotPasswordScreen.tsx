@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,11 +8,20 @@ import ScreenWrapper from '../../components/ui/ScreenWrapper';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 
+const RESEND_COOLDOWN_SECONDS = 30;
+
 export default function ForgotPasswordScreen({ navigation }: any) {
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [cooldown, setCooldown] = useState(0);
+
+    useEffect(() => {
+        if (cooldown <= 0) return;
+        const t = setTimeout(() => setCooldown(c => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [cooldown]);
 
     const handleSendReset = async () => {
         if (!email.trim()) {
@@ -28,11 +37,12 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         setError(null);
 
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
                 redirectTo: 'airtrainr://reset-password',
             });
             if (resetError) throw resetError;
             setSent(true);
+            setCooldown(RESEND_COOLDOWN_SECONDS);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Failed to send reset email');
         } finally {
@@ -68,7 +78,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 </Animated.View>
 
                 {sent ? (
-                    /* Success State with animated checkmark */
+                    /* Success State with animated checkmark + resend */
                     <Animated.View entering={FadeInDown.duration(250).delay(30)} style={styles.successContainer}>
                         <View style={styles.successIconOuter}>
                             <View style={styles.successIconInner}>
@@ -79,15 +89,41 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                         <Text style={styles.successMessage}>
                             We've sent a password reset link to{'\n'}
                             <Text style={styles.successEmail}>{email}</Text>
-                            {'\n\n'}It may take a few minutes to arrive.
                         </Text>
+
+                        <View style={styles.tipsBox}>
+                            <Text style={styles.tipsTitle}>Didn&apos;t receive the email?</Text>
+                            <Text style={styles.tipsItem}>• Check your spam or junk folder</Text>
+                            <Text style={styles.tipsItem}>• Make sure the email is correct</Text>
+                            <Text style={styles.tipsItem}>• Links expire after 1 hour</Text>
+                        </View>
+
                         <View style={styles.successAction}>
                             <Button
-                                title="Back to Sign In"
-                                onPress={() => navigation.goBack()}
-                                variant="outline"
+                                title={
+                                    isLoading
+                                        ? 'Resending...'
+                                        : cooldown > 0
+                                            ? `Resend in ${cooldown}s`
+                                            : 'Resend Email'
+                                }
+                                onPress={handleSendReset}
+                                loading={isLoading}
+                                disabled={isLoading || cooldown > 0}
                             />
                         </View>
+                        <Pressable
+                            onPress={() => { setSent(false); setEmail(''); setError(null); setCooldown(0); }}
+                            style={({ pressed }) => [styles.linkButton, pressed && { opacity: 0.7 }]}
+                        >
+                            <Text style={styles.linkButtonText}>Use a different email</Text>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => navigation.goBack()}
+                            style={({ pressed }) => [styles.linkButton, pressed && { opacity: 0.7 }]}
+                        >
+                            <Text style={styles.linkButtonTextSecondary}>Back to Sign In</Text>
+                        </Pressable>
                     </Animated.View>
                 ) : (
                     /* Form */
@@ -240,7 +276,43 @@ const styles = StyleSheet.create({
         fontWeight: FontWeight.semibold,
     },
     successAction: {
-        marginTop: Spacing.xxxl,
+        marginTop: Spacing.xl,
         width: '100%',
+    },
+    tipsBox: {
+        width: '100%',
+        marginTop: Spacing.xl,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        backgroundColor: Colors.surface,
+    },
+    tipsTitle: {
+        fontSize: FontSize.sm,
+        fontWeight: FontWeight.semibold,
+        color: Colors.text,
+        marginBottom: Spacing.sm,
+    },
+    tipsItem: {
+        fontSize: FontSize.xs,
+        color: Colors.textSecondary,
+        lineHeight: 18,
+    },
+    linkButton: {
+        marginTop: Spacing.md,
+        paddingVertical: Spacing.sm,
+        minHeight: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    linkButtonText: {
+        fontSize: FontSize.sm,
+        color: Colors.primary,
+        fontWeight: FontWeight.semibold,
+    },
+    linkButtonTextSecondary: {
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
     },
 });

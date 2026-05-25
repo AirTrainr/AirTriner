@@ -3,22 +3,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, XCircle, ArrowRight, AlertCircle } from "lucide-react";
 import { toast } from "@/components/ui/Toast";
-
-function getPasswordStrength(password: string) {
-    const checks = {
-        length: password.length >= 8,
-        uppercase: /[A-Z]/.test(password),
-        number: /[0-9]/.test(password),
-        special: /[^A-Za-z0-9]/.test(password),
-    };
-    const score = Object.values(checks).filter(Boolean).length;
-    return { score, checks };
-}
-
-const STRENGTH_LABELS = ["", "Weak", "Fair", "Good", "Strong"];
-const STRENGTH_COLORS = ["", "#ef4444", "#f59e0b", "#3b82f6", "#22c55e"];
+import PasswordStrengthMeter, { isPasswordValid } from "@/components/auth/PasswordStrengthMeter";
 
 export default function ResetPasswordPage() {
     const router = useRouter();
@@ -29,8 +16,10 @@ export default function ResetPasswordPage() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [countdown, setCountdown] = useState(3);
+    const [capsLockOn, setCapsLockOn] = useState(false);
 
-    const { score, checks } = getPasswordStrength(password);
+    const passwordValid = isPasswordValid(password);
+    const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
     useEffect(() => {
         const handleReset = async () => {
@@ -83,7 +72,7 @@ export default function ResetPasswordPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (score < 3) { toast.error("Please choose a stronger password"); return; }
+        if (!passwordValid) { toast.error("Password does not meet all requirements"); return; }
         if (password !== confirmPassword) { toast.error("Passwords do not match"); return; }
 
         setSubmitting(true);
@@ -199,104 +188,77 @@ export default function ResetPasswordPage() {
                                             type={showPassword ? "text" : "password"}
                                             value={password}
                                             onChange={e => setPassword(e.target.value)}
-                                            placeholder="••••••••"
+                                            onKeyUp={e => setCapsLockOn(e.getModifierState && e.getModifierState("CapsLock"))}
+                                            placeholder="Choose a strong password"
                                             required
                                             autoComplete="new-password"
                                             style={{
                                                 width: "100%", padding: "16px", paddingRight: "48px",
-                                                borderRadius: "12px", border: "1px solid var(--gray-800)",
+                                                borderRadius: "12px",
+                                                border: `1px solid ${password && !passwordValid ? "#f59e0b" : password && passwordValid ? "#22c55e" : "var(--gray-800)"}`,
                                                 background: "rgba(255,255,255,0.03)", color: "white",
                                                 fontSize: "15px", outline: "none", transition: "all 0.2s"
                                             }}
-                                            onFocus={e => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.background = "rgba(69,208,255,0.02)"; }}
-                                            onBlur={e => { e.currentTarget.style.borderColor = "var(--gray-800)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
                                         />
                                         <button type="button" onClick={() => setShowPassword(!showPassword)}
+                                            aria-label={showPassword ? "Hide password" : "Show password"}
                                             style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--gray-500)", cursor: "pointer", display: "flex" }}>
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>
                                     </div>
-
-                                    {/* Strength Meter */}
-                                    {password.length > 0 && (
-                                        <div style={{ marginTop: "10px" }}>
-                                            <div style={{ display: "flex", gap: "4px", marginBottom: "6px" }}>
-                                                {[1, 2, 3, 4].map(i => (
-                                                    <div key={i} style={{
-                                                        flex: 1, height: "3px", borderRadius: "2px",
-                                                        background: i <= score ? STRENGTH_COLORS[score] : "var(--gray-800)",
-                                                        transition: "all 0.3s"
-                                                    }} />
-                                                ))}
-                                            </div>
-                                            <p style={{ fontSize: "11px", fontWeight: 700, color: STRENGTH_COLORS[score] || "var(--gray-500)" }}>
-                                                {STRENGTH_LABELS[score] || "Too weak"}
-                                            </p>
-                                        </div>
+                                    {capsLockOn && (
+                                        <p style={{ fontSize: "12px", color: "#f59e0b", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                            <AlertCircle size={12} /> Caps Lock is on
+                                        </p>
                                     )}
+                                    <PasswordStrengthMeter password={password} />
                                 </div>
 
                                 {/* Confirm Password */}
-                                <div style={{ marginBottom: "24px" }}>
+                                <div style={{ marginBottom: "28px" }}>
                                     <label style={{ display: "block", fontSize: "11px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px", color: "var(--gray-300)" }}>Confirm Password</label>
                                     <div style={{ position: "relative" }}>
                                         <input
                                             type={showConfirm ? "text" : "password"}
                                             value={confirmPassword}
                                             onChange={e => setConfirmPassword(e.target.value)}
-                                            placeholder="••••••••"
+                                            placeholder="Re-enter your password"
                                             required
                                             autoComplete="new-password"
                                             style={{
                                                 width: "100%", padding: "16px", paddingRight: "48px",
                                                 borderRadius: "12px",
-                                                border: `1px solid ${confirmPassword && confirmPassword !== password ? "#ef4444" : confirmPassword && confirmPassword === password ? "#22c55e" : "var(--gray-800)"}`,
+                                                border: `1px solid ${confirmPassword && !passwordsMatch ? "#ef4444" : passwordsMatch ? "#22c55e" : "var(--gray-800)"}`,
                                                 background: "rgba(255,255,255,0.03)", color: "white",
                                                 fontSize: "15px", outline: "none", transition: "all 0.2s"
                                             }}
                                         />
                                         <button type="button" onClick={() => setShowConfirm(!showConfirm)}
+                                            aria-label={showConfirm ? "Hide password" : "Show password"}
                                             style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--gray-500)", cursor: "pointer", display: "flex" }}>
                                             {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>
                                     </div>
-                                    {confirmPassword && confirmPassword !== password && (
-                                        <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px" }}>✗ Passwords do not match</p>
+                                    {confirmPassword && !passwordsMatch && (
+                                        <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                            <AlertCircle size={12} /> Passwords do not match
+                                        </p>
                                     )}
-                                    {confirmPassword && confirmPassword === password && (
+                                    {passwordsMatch && (
                                         <p style={{ fontSize: "12px", color: "#22c55e", marginTop: "6px" }}>✓ Passwords match</p>
                                     )}
-                                </div>
-
-                                {/* Requirements Checklist */}
-                                <div style={{ marginBottom: "28px", padding: "16px", background: "rgba(255,255,255,0.02)", borderRadius: "12px", border: "1px solid var(--gray-800)" }}>
-                                    <p style={{ fontSize: "11px", fontWeight: 800, color: "var(--gray-400)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "12px" }}>Password Requirements</p>
-                                    {[
-                                        { label: "At least 8 characters", met: checks.length },
-                                        { label: "One uppercase letter (A–Z)", met: checks.uppercase },
-                                        { label: "One number (0–9)", met: checks.number },
-                                        { label: "One special character (!@#$...)", met: checks.special },
-                                    ].map((req, i) => (
-                                        <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: i < 3 ? "8px" : 0 }}>
-                                            {req.met
-                                                ? <CheckCircle2 size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
-                                                : <XCircle size={14} style={{ color: "var(--gray-700)", flexShrink: 0 }} />
-                                            }
-                                            <span style={{ fontSize: "13px", color: req.met ? "#22c55e" : "var(--gray-500)", transition: "color 0.2s" }}>{req.label}</span>
-                                        </div>
-                                    ))}
                                 </div>
 
                                 {/* Submit Button */}
                                 <button
                                     type="submit"
-                                    disabled={submitting || score < 3 || password !== confirmPassword || !confirmPassword}
+                                    disabled={submitting || !passwordValid || !passwordsMatch}
                                     style={{
                                         width: "100%", padding: "16px", borderRadius: "12px",
-                                        background: (submitting || score < 3 || password !== confirmPassword || !confirmPassword) ? "var(--gray-700)" : "var(--primary)",
+                                        background: (submitting || !passwordValid || !passwordsMatch) ? "var(--gray-700)" : "var(--primary)",
                                         color: "var(--color-bg)", border: "none", fontWeight: 800,
                                         fontSize: "15px", textTransform: "uppercase", letterSpacing: "1px",
-                                        cursor: (submitting || score < 3 || password !== confirmPassword || !confirmPassword) ? "not-allowed" : "pointer",
+                                        cursor: (submitting || !passwordValid || !passwordsMatch) ? "not-allowed" : "pointer",
                                         transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px"
                                     }}
                                 >

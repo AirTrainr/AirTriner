@@ -1,12 +1,13 @@
 "use client";
 
-import { Leaf, Dumbbell, TrendingUp, Trophy, Star, Users, Eye, EyeOff } from "lucide-react";
+import { Leaf, Dumbbell, TrendingUp, Trophy, Star, Users, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useState, Suspense } from "react";
 import { registerUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "@/components/ui/Toast";
 import LocationAutocomplete, { type LocationValue } from "@/components/forms/LocationAutocomplete";
+import PasswordStrengthMeter, { isPasswordValid } from "@/components/auth/PasswordStrengthMeter";
 
 const SPORTS = [
     "Hockey", "Baseball", "Basketball", "Football", "Soccer",
@@ -30,11 +31,20 @@ function RegisterForm() {
     );
 
     // Step 1
-    const [fullName, setFullName] = useState("");
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [capsLockOn, setCapsLockOn] = useState(false);
+    const [emailTouched, setEmailTouched] = useState(false);
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailValid = emailRegex.test(email);
+    const passwordValid = isPasswordValid(password);
+    const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
     // Step 2
     const [selectedSports, setSelectedSports] = useState<string[]>([]);
@@ -44,42 +54,61 @@ function RegisterForm() {
     const [dateOfBirth, setDateOfBirth] = useState("");
 
     const [loading, setLoading] = useState(false);
-    const handleStep1Submit = (e: React.FormEvent) => {
+    const [checkingEmail, setCheckingEmail] = useState(false);
+    const [emailExistsError, setEmailExistsError] = useState("");
+
+    const handleStep1Submit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setEmailExistsError("");
 
         if (!role) {
             toast.error("Please select a role");
             return;
         }
-        if (!fullName.trim().includes(" ")) {
-            toast.error("Please enter both first and last name");
+        if (!firstName.trim()) {
+            toast.error("Please enter your first name");
             return;
         }
-
-        // Fix D: client-side email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!lastName.trim()) {
+            toast.error("Please enter your last name");
+            return;
+        }
+        if (!emailValid) {
             toast.error("Please enter a valid email address");
             return;
         }
-
-        // Password rules: at least 12 chars + lower + upper + digit + symbol.
-        // Allow ANY non-alphanumeric as symbol — old regex whitelisted only a
-        // narrow set and silently rejected common chars like '.' ',' ';'
-        // even when the password met every other rule.
-        if (password.length < 12) {
-            toast.error("Password must be at least 12 characters long.");
+        if (!passwordValid) {
+            toast.error("Password does not meet all requirements");
             return;
         }
-        if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-            toast.error("Password must include uppercase, lowercase, a number, and a symbol.");
-            return;
-        }
-
-        // Fix B: confirm password check
         if (password !== confirmPassword) {
             toast.error("Passwords do not match");
             return;
+        }
+
+        // Pre-check: is this email already registered? Catching it here saves the
+        // user from filling out sports/location only to fail at the final submit.
+        setCheckingEmail(true);
+        try {
+            const cleanEmail = email.toLowerCase().trim();
+            const { data: existing } = await supabase
+                .from("users")
+                .select("id")
+                .eq("email", cleanEmail)
+                .maybeSingle();
+
+            if (existing) {
+                setEmailExistsError("An account with this email already exists. Try logging in instead.");
+                toast.error("Email already registered");
+                setCheckingEmail(false);
+                return;
+            }
+        } catch (err) {
+            // If the check itself fails, don't block the user — the final signUp
+            // call will catch duplicates as a fallback.
+            console.warn("[register] email pre-check failed:", err);
+        } finally {
+            setCheckingEmail(false);
         }
 
         setStep(2);
@@ -133,15 +162,12 @@ function RegisterForm() {
             return;
         }
 
-        const [firstName, ...lastNames] = fullName.split(" ");
-        const lastName = lastNames.join(" ");
-
         try {
             await registerUser({
                 email,
                 password,
-                firstName,
-                lastName,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
                 role: role as "athlete" | "trainer",
                 dateOfBirth,
                 sports: selectedSports,
@@ -240,24 +266,41 @@ function RegisterForm() {
                                 </div>
                             </div>
 
-                            {/* Fix E: autoComplete="name" */}
-                            <div style={{ marginBottom: "20px" }}>
-                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>Full Name</label>
-                                <div style={{ position: "relative" }}>
-                                    <input
-                                        type="text"
-                                        autoComplete="name"
-                                        value={fullName}
-                                        onChange={e => setFullName(e.target.value)}
-                                        placeholder="Enter your full name"
-                                        required
-                                        style={{ ...inputStyle, paddingLeft: "40px" }}
-                                    />
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            {/* First + Last name — split fields so multi-word last names work */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ marginBottom: "20px" }}>
+                                <div>
+                                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>First Name</label>
+                                    <div style={{ position: "relative" }}>
+                                        <input
+                                            type="text"
+                                            autoComplete="given-name"
+                                            value={firstName}
+                                            onChange={e => setFirstName(e.target.value)}
+                                            placeholder="Jane"
+                                            required
+                                            style={{ ...inputStyle, paddingLeft: "40px" }}
+                                        />
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>Last Name</label>
+                                    <div style={{ position: "relative" }}>
+                                        <input
+                                            type="text"
+                                            autoComplete="family-name"
+                                            value={lastName}
+                                            onChange={e => setLastName(e.target.value)}
+                                            placeholder="Doe"
+                                            required
+                                            style={{ ...inputStyle, paddingLeft: "40px" }}
+                                        />
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Fix E: autoComplete="email" */}
+                            {/* Email with inline validation */}
                             <div style={{ marginBottom: "20px" }}>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>Email Address</label>
                                 <div style={{ position: "relative" }}>
@@ -265,64 +308,117 @@ function RegisterForm() {
                                         type="email"
                                         autoComplete="email"
                                         value={email}
-                                        onChange={e => setEmail(e.target.value)}
+                                        onChange={e => { setEmail(e.target.value); setEmailExistsError(""); }}
+                                        onBlur={() => setEmailTouched(true)}
                                         placeholder="name@example.com"
                                         required
-                                        style={{ ...inputStyle, paddingLeft: "40px" }}
+                                        style={{
+                                            ...inputStyle,
+                                            paddingLeft: "40px",
+                                            borderColor: (emailTouched && email && !emailValid) || emailExistsError ? "#ef4444" : "var(--gray-800)",
+                                        }}
                                     />
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
                                 </div>
+                                {emailTouched && email && !emailValid && !emailExistsError && (
+                                    <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                        <AlertCircle size={12} /> Please enter a valid email address
+                                    </p>
+                                )}
+                                {emailExistsError && (
+                                    <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                        <AlertCircle size={12} /> {emailExistsError}{" "}
+                                        <a href="/auth/login" style={{ color: "var(--primary)", textDecoration: "underline", fontWeight: 700 }}>Log in →</a>
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Fix C & E: updated password hint + autoComplete="new-password" */}
+                            {/* Password with strength meter + requirements checklist */}
                             <div style={{ marginBottom: "20px" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                                    <label style={{ fontSize: "12px", fontWeight: 700, color: "white" }}>Password</label>
-                                    <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>Min. 12 chars • Uppercase • Lowercase • Number • Special char</span>
-                                </div>
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>Password</label>
                                 <div style={{ position: "relative" }}>
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         autoComplete="new-password"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        placeholder="••••••••"
+                                        onKeyUp={e => setCapsLockOn(e.getModifierState && e.getModifierState("CapsLock"))}
+                                        placeholder="Choose a strong password"
                                         required
                                         minLength={12}
-                                        style={{ ...inputStyle, paddingLeft: "40px" }}
+                                        style={{
+                                            ...inputStyle,
+                                            paddingLeft: "40px",
+                                            borderColor: password && !passwordValid ? "#f59e0b" : password && passwordValid ? "#22c55e" : "var(--gray-800)",
+                                        }}
                                     />
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
+                                        aria-label={showPassword ? "Hide password" : "Show password"}
                                         style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--gray-500)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
+                                {capsLockOn && (
+                                    <p style={{ fontSize: "12px", color: "#f59e0b", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                        <AlertCircle size={12} /> Caps Lock is on
+                                    </p>
+                                )}
+                                <PasswordStrengthMeter password={password} />
                             </div>
 
-                            {/* Fix B: Confirm Password field */}
+                            {/* Confirm Password with inline match indicator */}
                             <div style={{ marginBottom: "32px" }}>
                                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "white", marginBottom: "8px" }}>Confirm Password</label>
                                 <div style={{ position: "relative" }}>
                                     <input
-                                        type="password"
+                                        type={showConfirm ? "text" : "password"}
                                         autoComplete="new-password"
                                         value={confirmPassword}
                                         onChange={e => setConfirmPassword(e.target.value)}
-                                        placeholder="••••••••"
+                                        placeholder="Re-enter your password"
                                         required
-                                        style={{ ...inputStyle, paddingLeft: "40px" }}
+                                        style={{
+                                            ...inputStyle,
+                                            paddingLeft: "40px",
+                                            borderColor: confirmPassword && !passwordsMatch ? "#ef4444" : passwordsMatch ? "#22c55e" : "var(--gray-800)",
+                                        }}
                                     />
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", left: "12px", top: "16px" }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirm(!showConfirm)}
+                                        aria-label={showConfirm ? "Hide password" : "Show password"}
+                                        style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--gray-500)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                    >
+                                        {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
+                                {confirmPassword && !passwordsMatch && (
+                                    <p style={{ fontSize: "12px", color: "#ef4444", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                                        <AlertCircle size={12} /> Passwords do not match
+                                    </p>
+                                )}
+                                {passwordsMatch && (
+                                    <p style={{ fontSize: "12px", color: "#22c55e", marginTop: "6px" }}>✓ Passwords match</p>
+                                )}
                             </div>
 
-                            {/* Fix G: w-full button */}
-                            <button type="submit" style={{ width: "100%", padding: "16px", borderRadius: "12px", background: "var(--primary)", color: "var(--color-bg)", border: "none", fontWeight: 800, fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", transition: "all 0.2s" }}>
-                                Continue to Personalization
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"><path d="m9 18 6-6-6-6" /></svg>
+                            <button
+                                type="submit"
+                                disabled={checkingEmail}
+                                style={{
+                                    width: "100%", padding: "16px", borderRadius: "12px",
+                                    background: checkingEmail ? "var(--gray-700)" : "var(--primary)",
+                                    color: "var(--color-bg)", border: "none", fontWeight: 800, fontSize: "15px",
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                                    cursor: checkingEmail ? "not-allowed" : "pointer", transition: "all 0.2s"
+                                }}
+                            >
+                                {checkingEmail ? "Checking..." : <>Continue to Personalization <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter"><path d="m9 18 6-6-6-6" /></svg></>}
                             </button>
 
                             {/* OAuth divider */}
