@@ -84,9 +84,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const clearAllNotifications = async () => {
         if (!user) return;
+        const res = await fetch('/api/notifications/clear', { method: 'POST' });
+        if (!res.ok) return;
         setNotifications([]);
         setUnreadCount(0);
-        await supabase.from("notifications").delete().eq("user_id", user.id);
     };
 
     const updateNotificationData = async (id: string, newData: any) => {
