@@ -198,20 +198,10 @@ export default function NotificationsScreen({ navigation }: any) {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const { error } = await supabase
-                                .from('notifications')
-                                .delete()
-                                .eq('user_id', user.id);
-
-                            if (error) {
-                                console.error('Supabase delete error:', error);
-                                await supabase
-                                    .from('notifications')
-                                    .update({ read: true })
-                                    .eq('user_id', user.id);
-                                Alert.alert('Note', 'Notifications were marked as read instead of deleted.');
-                            }
-
+                            const res = await fetch(`${Config.appUrl}/api/notifications/clear`, {
+                                method: 'POST',
+                            });
+                            if (!res.ok) throw new Error('Failed to clear notifications');
                             setNotifications([]);
                         } catch (err) {
                             console.error('Failed to clear notifications:', err);
