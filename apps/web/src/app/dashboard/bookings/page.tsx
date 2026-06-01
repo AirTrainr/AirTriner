@@ -160,37 +160,6 @@ export default function BookingsPage() {
             setBookings((p) => p.map((b) => b.id === bookingId ? { ...b, status: newStatus as BookingRow["status"] } : b));
             const labels: Record<string, string> = { confirmed: "Booking Confirmed", completed: "Session Complete", cancelled: "Cancelled", rejected: "Rejected" };
             toastSuccess(labels[newStatus] || "Updated");
-            const booking = bookings.find(b => b.id === bookingId);
-            if (booking) {
-                if (newStatus === "confirmed") {
-                    await supabase.from("notifications").insert({
-                        user_id: booking.athlete_id,
-                        type: "BOOKING_CONFIRMED",
-                        title: "Booking confirmed",
-                        body: "Your booking has been confirmed.",
-                        data: { booking_id: bookingId },
-                        read: false,
-                    });
-                } else if (newStatus === "completed") {
-                    await supabase.from("notifications").insert({
-                        user_id: booking.athlete_id,
-                        type: "BOOKING_COMPLETED",
-                        title: "Session Completed",
-                        body: `Your ${booking.sport} session has been marked as complete.`,
-                        data: { booking_id: bookingId },
-                        read: false,
-                    });
-                } else if (newStatus === "rejected") {
-                    await supabase.from("notifications").insert({
-                        user_id: booking.athlete_id,
-                        type: "BOOKING_REJECTED",
-                        title: "Booking Declined",
-                        body: `Your ${booking.sport} session request was declined.`,
-                        data: { booking_id: bookingId },
-                        read: false,
-                    });
-                }
-            }
         } catch (err: any) { toastError("Error", err.message); }
         finally { setActionLoading(null); }
     };
