@@ -185,6 +185,8 @@ export default function BookTrainerPage() {
     const [durationMinutes, setDurationMinutes] = useState(60);
     const [selectedLocation, setSelectedLocation] = useState('');
     const [platformFeePct, setPlatformFeePct] = useState<number>(3);
+    const [subAccounts, setSubAccounts] = useState<{ id: string; profile_data: { first_name: string; last_name: string } }[]>([]);
+    const [selectedSubAccountId, setSelectedSubAccountId] = useState<string | null>(null);
 
     useEffect(() => {
         const session = getSession();
@@ -194,6 +196,14 @@ export default function BookTrainerPage() {
         }
         setUser(session);
         if (trainerId) loadTrainer();
+        if (session.role === 'athlete') {
+            supabase
+                .from('sub_accounts')
+                .select('id, profile_data, is_active')
+                .eq('parent_user_id', session.id)
+                .eq('is_active', true)
+                .then(({ data }) => setSubAccounts(data || []));
+        }
         // Load platform fee % for the fee breakdown preview
         (async () => {
             const { data: s } = await supabase
@@ -645,10 +655,24 @@ export default function BookTrainerPage() {
                     scheduledAt: scheduledAt.toISOString(),
                     durationMinutes,
                     trainingLocation: selectedLocation || null,
+                    subAccountId: selectedSubAccountId || undefined,
                 }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.error || "Booking failed");
+
+            // Send initial message to trainer (same as app behaviour)
+            const selectedSubAccount = subAccounts.find(sa => sa.id === selectedSubAccountId);
+            const bookingForLabel = selectedSubAccount
+                ? selectedSubAccount.profile_data?.first_name || 'family member'
+                : 'myself';
+            const bookingDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            await supabase.from('messages').insert({
+                booking_id: data.booking.id,
+                sender_id: user!.id,
+                content: `Hi! I'd like to book a ${selectedSport} session with you on ${bookingDate} at ${selectedTime} for ${durationMinutes} minutes (for ${bookingForLabel}).`,
+            });
+
             success("Booking Requested!", "Your session request has been sent to the trainer.");
             setTimeout(() => router.push("/dashboard/bookings"), 1200);
         } catch (error) {
@@ -1204,6 +1228,47 @@ export default function BookTrainerPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Booking For — shown only if athlete has sub-accounts */}
+                        {subAccounts.length > 0 && (
+                            <div className="mb-6">
+                                <h4 className="text-[10px] text-text-main/40 font-bold uppercase tracking-[0.15em] mb-3">Booking for</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {/* Myself option */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedSubAccountId(null)}
+                                        className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold border transition-all ${
+                                            selectedSubAccountId === null
+                                                ? 'bg-white text-black border-white'
+                                                : 'bg-white/4 text-white/60 border-white/10 hover:border-white/30'
+                                        }`}
+                                    >
+                                        Myself
+                                    </button>
+                                    {/* Family members */}
+                                    {subAccounts.map(sa => {
+                                        const fn = sa.profile_data?.first_name || '';
+                                        const ln = sa.profile_data?.last_name || '';
+                                        const isSelected = selectedSubAccountId === sa.id;
+                                        return (
+                                            <button
+                                                key={sa.id}
+                                                type="button"
+                                                onClick={() => setSelectedSubAccountId(sa.id)}
+                                                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold border transition-all ${
+                                                    isSelected
+                                                        ? 'bg-white text-black border-white'
+                                                        : 'bg-white/4 text-white/60 border-white/10 hover:border-white/30'
+                                                }`}
+                                            >
+                                                {fn} {ln}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Fee Breakdown Preview */}
                         {user?.id !== trainer?.user_id && (() => {
