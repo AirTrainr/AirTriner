@@ -195,5 +195,21 @@ export async function POST(req: NextRequest) {
         );
     }
 
+    // Notify trainer of new booking request
+    const { data: athleteUser } = await supabase
+        .from('users')
+        .select('first_name, last_name')
+        .eq('id', auth.user.id)
+        .maybeSingle();
+    const athleteName = `${athleteUser?.first_name || ''} ${athleteUser?.last_name || ''}`.trim() || 'An athlete';
+    const { error: notifErr } = await supabase.from('notifications').insert({
+        user_id: trainerId,
+        type: 'BOOKING_REQUEST',
+        title: 'New Booking Request',
+        body: `${athleteName} has requested a ${durationMinutes}-min ${sport} session on ${scheduledDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+        read: false,
+    });
+    if (notifErr) console.error('[booking/create] notification insert failed:', notifErr);
+
     return NextResponse.json({ booking: inserted }, { status: 201 });
 }
