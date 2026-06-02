@@ -10,6 +10,7 @@ import { supabase, NotificationRow } from '../../lib/supabase';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight } from '../../theme';
 import { ScreenWrapper, ScreenHeader, Card, Badge, EmptyState, LoadingScreen, Button } from '../../components/ui';
 import { Config } from '../../lib/config';
+import { apiFetch } from '../../lib/api-fetch';
 
 const NOTIF_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
     // Booking lifecycle
@@ -154,7 +155,7 @@ export default function NotificationsScreen({ navigation }: any) {
 
         if (!user) return;
         const channel = supabase
-            .channel(`notifications-${user.id}`)
+            .channel(`notifications-${user.id}-${Date.now()}`)
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -166,8 +167,11 @@ export default function NotificationsScreen({ navigation }: any) {
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
-    }, [fetchNotifications, user]);
+        return () => {
+            channel.unsubscribe();
+            supabase.removeChannel(channel);
+        };
+    }, [user]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -198,7 +202,7 @@ export default function NotificationsScreen({ navigation }: any) {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const res = await fetch(`${Config.appUrl}/api/notifications/clear`, {
+                            const res = await apiFetch('/api/notifications/clear', {
                                 method: 'POST',
                             });
                             if (!res.ok) throw new Error('Failed to clear notifications');
@@ -237,14 +241,18 @@ export default function NotificationsScreen({ navigation }: any) {
         const trainerId = data.trainer_id || data.trainerId;
         const goBookingDetail = () => {
             if (bookingId) navigation.navigate('BookingDetail', { bookingId });
-            else navigation.navigate('Bookings');
+            else (navigation as any).navigate('Tabs', { screen: 'Bookings' });
         };
 
         switch (notif.type) {
-            // Booking lifecycle → BookingDetail
-            case 'BOOKING_REQUESTED':
+            // New booking request → Bookings tab directly
             case 'BOOKING_REQUEST':
+            case 'BOOKING_REQUESTED':
             case 'NEW_REQUEST_NEARBY':
+                (navigation as any).navigate('Tabs', { screen: 'Bookings' });
+                return;
+
+            // Booking lifecycle → BookingDetail
             case 'BOOKING_ACCEPTED':
             case 'BOOKING_CONFIRMED':
             case 'BOOKING_REJECTED':
