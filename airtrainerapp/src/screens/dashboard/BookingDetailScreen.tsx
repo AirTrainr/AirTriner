@@ -214,14 +214,6 @@ export default function BookingDetailScreen({ route, navigation }: any) {
                             },
                         };
 
-                        if (notifMap[newStatus] && otherUser) {
-                            await createNotification({
-                                userId: otherUser.id,
-                                ...notifMap[newStatus],
-                                data: { bookingId },
-                            });
-                        }
-
                         fetchBooking();
                     } catch (e: any) {
                         Alert.alert('Error', e.message);
