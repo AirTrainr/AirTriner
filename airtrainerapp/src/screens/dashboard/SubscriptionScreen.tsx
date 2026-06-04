@@ -147,37 +147,24 @@ export default function SubscriptionScreen({ navigation }: any) {
     const handleSubscribe = async (plan: 'monthly' | 'annual') => {
         setSubscribing(true);
         try {
-            const response = await fetch(`${Config.appUrl}/api/stripe/create-checkout`, {
+            const { url } = await apiFetchJson('/api/stripe/create-checkout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ plan, email: user?.email, trainerProfileId: user?.id }),
             });
 
-            if (response.ok) {
-                const { url } = await response.json();
-                if (url) {
-                    await WebBrowser.openBrowserAsync(url);
-                    fetchProfile();
+            if (url) {
+                const successRedirect = `${Config.appUrl.replace(/\/$/, '')}/dashboard/subscription/success`;
+                const result = await WebBrowser.openAuthSessionAsync(url, successRedirect);
+
+                // Poll until subscription active
+                for (let i = 0; i < 5; i++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    await fetchProfile();
+                    if (result.type === 'success') break;
                 }
-            } else {
-                const expiresAt =
-                    plan === 'monthly'
-                        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-
-                await supabase
-                    .from('trainer_profiles')
-                    .update({
-                        subscription_status: 'active',
-                        subscription_expires_at: expiresAt.toISOString(),
-                    })
-                    .eq('user_id', user?.id);
-
-                Alert.alert('Subscribed!', `Your ${plan} subscription is now active.`);
-                fetchProfile();
             }
-        } catch (error) {
-            Alert.alert('Error', 'Could not process subscription. Please try again.');
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Could not process subscription. Please try again.');
         } finally {
             setSubscribing(false);
         }
