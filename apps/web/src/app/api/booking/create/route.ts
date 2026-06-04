@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireSessionUser } from '@/lib/session-auth';
 import { trainerPublicGate } from '@/lib/trainer-gate';
 import { normalizeSessionPricing, priceFor, ALLOWED_SESSION_DURATIONS } from '@/lib/session-pricing';
+import { calculateFees } from '@/lib/fees';
 
 export async function POST(req: NextRequest) {
     const auth = await requireSessionUser(req);
@@ -157,6 +158,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Slot already taken' }, { status: 409 });
     }
 
+    // Pre-calculate fees for display purposes — create-booking-payment will overwrite
+    // with fresh values at payment time. This ensures booking cards show correct amounts
+    // from the moment a booking is created, not just after payment is initiated.
+    const { data: settings } = await supabase
+        .from('platform_settings')
+        .select('platform_fee_percentage')
+        .maybeSingle();
+
+    const fees = calculateFees({
+        price,
+        platformFeePercentage: settings?.platform_fee_percentage,
+    });
+
     const nowIso = new Date().toISOString();
 
     const insertPayload: Record<string, unknown> = {
@@ -168,10 +182,9 @@ export async function POST(req: NextRequest) {
         duration_minutes: durationMinutes,
         status: 'pending',
         price,
-        // total_paid / fees are computed at payment time in create-booking-payment.
-        platform_fee: 0,
-        stripe_fee: 0,
-        tax_amount: 0,
+        platform_fee: fees.platformFee,
+        stripe_fee: fees.stripeFee,
+        tax_amount: fees.taxAmount,
         total_paid: 0,
         status_history: [
             { status: 'pending', timestamp: nowIso, note: 'Booking created' },

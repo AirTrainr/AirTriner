@@ -481,7 +481,10 @@ export default function BookingsPage() {
                                                 {/* Price */}
                                                 <span className="inline-flex items-center gap-0.5 text-[11px] font-black text-emerald-400 bg-emerald-500/8 px-2.5 py-1 rounded-lg border border-emerald-500/15">
                                                     <DollarSign size={10} />
-                                                    {Number(booking.total_paid).toFixed(2)}
+                                                    {(booking.total_paid > 0
+                                                        ? Number(booking.total_paid)
+                                                        : Number(booking.price) + Number(booking.platform_fee || 0) + Number(booking.stripe_fee || 0) + Number(booking.tax_amount || 0)
+                                                    ).toFixed(2)}
                                                 </span>
 
                                                 {/* Status badge */}
@@ -538,7 +541,10 @@ export default function BookingsPage() {
                                         {needsPayment && (
                                             <button onClick={() => handlePayNow(booking)} disabled={paymentLoading === booking.id}
                                                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-bg text-[11px] font-black uppercase tracking-wider hover:shadow-[0_0_16px_rgba(69,208,255,0.4)] transition-all disabled:opacity-50">
-                                                {paymentLoading === booking.id ? <><Loader2 size={11} className="animate-spin" />Processing...</> : <><CreditCard size={11} />Pay ${Number(booking.total_paid).toFixed(2)}</>}
+                                                {paymentLoading === booking.id ? <><Loader2 size={11} className="animate-spin" />Processing...</> : <><CreditCard size={11} />Pay ${(booking.total_paid > 0
+                                                                ? Number(booking.total_paid)
+                                                                : Number(booking.price) + Number(booking.platform_fee || 0) + Number(booking.stripe_fee || 0) + Number(booking.tax_amount || 0)
+                                                            ).toFixed(2)}</>}
                                             </button>
                                         )}
 
