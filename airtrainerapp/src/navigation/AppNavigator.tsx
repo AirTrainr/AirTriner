@@ -85,6 +85,7 @@ function TabNavigator() {
     const isTrainer = user?.role === 'trainer' || user?.role === 'admin';
     const [unreadMessages, setUnreadMessages] = useState(0);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const channelRef = useRef<any>(null);
 
     // Fetch unread message count
     const fetchUnreadCount = useCallback(async () => {
@@ -116,8 +117,9 @@ function TabNavigator() {
 
         // Listen for new messages in real-time to update badge
         if (!user) return;
+        if (channelRef.current) return; // Already subscribed
         const channel = supabase
-            .channel('global-messages-badge')
+            .channel(`global-messages-badge-${user.id}-${Date.now()}`)
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -169,6 +171,8 @@ function TabNavigator() {
             })
             .subscribe();
 
+        channelRef.current = channel;
+
         // Refresh counts every 30 seconds
         const interval = setInterval(() => {
             fetchUnreadCount();
@@ -176,10 +180,14 @@ function TabNavigator() {
         }, 30000);
 
         return () => {
-            supabase.removeChannel(channel);
+            if (channelRef.current) {
+                channelRef.current.unsubscribe();
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
             clearInterval(interval);
         };
-    }, [user, fetchUnreadCount, fetchUnreadNotificationCount]);
+    }, [user]);
 
     // Reset badge when Messages tab is focused
     const handleMessagesTabFocus = () => {

@@ -55,6 +55,7 @@ function Dropdown({ value, options, onChange, width = 160 }: { value: string; op
     );
 }
 import { supabase } from "@/lib/supabase";
+import { adminFetch } from "@/lib/admin-fetch";
 
 export default function AdminContactsPage() {
     const [messages, setMessages] = useState<any[]>([]);
@@ -104,13 +105,10 @@ export default function AdminContactsPage() {
     const loadMessages = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from("contact_messages")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            if (error) throw error;
-            setMessages(data || []);
+            const res = await adminFetch('/api/admin/contact-messages');
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error);
+            setMessages(json.messages || []);
         } catch (err) {
             console.error("Failed to load contact messages:", err);
         } finally {
@@ -121,12 +119,12 @@ export default function AdminContactsPage() {
     const handleDelete = async (id: string) => {
         setDeleting(id);
         try {
-            const { error } = await supabase
-                .from("contact_messages")
-                .delete()
-                .eq("id", id);
-
-            if (error) throw error;
+            const res = await adminFetch('/api/admin/contact-messages', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+            });
+            if (!res.ok) throw new Error('Failed to delete');
             setMessages((prev) => prev.filter((m) => m.id !== id));
         } catch (err) {
             console.error("Failed to delete message:", err);
@@ -138,12 +136,12 @@ export default function AdminContactsPage() {
     const handleMarkRead = async (id: string, nextRead: boolean) => {
         setMarkingId(id);
         try {
-            const { error } = await supabase
-                .from("contact_messages")
-                .update({ is_read: nextRead })
-                .eq("id", id);
-
-            if (error) throw error;
+            const res = await adminFetch('/api/admin/contact-messages', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, is_read: nextRead }),
+            });
+            if (!res.ok) throw new Error('Failed to update');
             setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: nextRead } : m)));
         } catch (err) {
             console.error("Failed to update read state:", err);
@@ -157,12 +155,13 @@ export default function AdminContactsPage() {
         if (unreadIds.length === 0) return;
         setMarkingAll(true);
         try {
-            const { error } = await supabase
-                .from("contact_messages")
-                .update({ is_read: true })
-                .in("id", unreadIds);
-
-            if (error) throw error;
+            await Promise.all(unreadIds.map(id =>
+                adminFetch('/api/admin/contact-messages', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, is_read: true }),
+                })
+            ));
             setMessages((prev) => prev.map((m) => ({ ...m, is_read: true })));
         } catch (err) {
             console.error("Failed to mark all read:", err);
