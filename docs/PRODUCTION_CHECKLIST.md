@@ -53,6 +53,17 @@ Web app was just migrated from OLD (`duaqkmptxsnonvtfdohp`) to NEW (`qkxcyavqzrv
 
 - [ ] **`apps/web/.env:29-30`** — `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` are in repo. Move to Vercel env, rotate if leaked.
 
+## Database migrations to run on NEW Supabase project
+
+Apply these (in order) via Supabase Studio → SQL Editor, or `supabase db push`:
+
+- [ ] `apps/web/supabase/migrations/20260601000000_add_booking_request_notification_type.sql`
+- [ ] `apps/web/supabase/migrations/20260601000001_fix_booking_rejected_notification_type.sql`
+- [ ] `apps/web/supabase/migrations/20260601000002_add_missing_notification_types.sql`
+- [ ] `apps/web/supabase/migrations/20260601000003_fix_trainer_notification_on_own_actions.sql`
+
+Without these, notifications break (enum value missing, wrong type sent for rejections, trainer gets self-notifications, etc.).
+
 ## Other
 
 - [ ] **`apps/web/src/app/api/contact/route.ts`** — uses `NEXT_PUBLIC_SUPABASE_URL`; should work with NEW after env update, no code change.
