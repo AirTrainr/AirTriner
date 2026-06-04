@@ -495,11 +495,11 @@ export async function POST(req: NextRequest) {
                 const { bookingId, athleteId, trainerId, amount, platformFee, stripeFee, taxAmount, taxLabel, trainerPayout } = pi.metadata || {};
                 if (!bookingId) break;
 
-                // Idempotency check
+                // Idempotency check — by booking_id OR payment_intent_id
                 const { data: existingPi } = await supabaseAdmin
                     .from('payment_transactions')
                     .select('id')
-                    .eq('booking_id', bookingId)
+                    .or(`booking_id.eq.${bookingId},stripe_payment_intent_id.eq.${pi.id}`)
                     .maybeSingle();
                 if (existingPi) break;
 
