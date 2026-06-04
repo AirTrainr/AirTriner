@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Config } from '../../lib/config';
+import { apiFetch, apiFetchJson } from '../../lib/api-fetch';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, Shadows } from '../../theme';
 import { ScreenWrapper, ScreenHeader, Card, Badge, EmptyState, LoadingScreen, Button, SectionHeader } from '../../components/ui';
 
@@ -136,9 +137,7 @@ export default function PaymentMethodsScreen({ navigation }: any) {
         if (!user || !isTrainer) return;
         setError(null);
         try {
-            const res = await fetch(`${baseUrl}/api/stripe/connect-status?userId=${user.id}`);
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to fetch status');
+            const data = await apiFetchJson(`/api/stripe/connect-status?userId=${user.id}`);
             setConnectStatus(data);
         } catch (err: unknown) {
             console.error('Error fetching connect status:', err);
@@ -205,15 +204,12 @@ export default function PaymentMethodsScreen({ navigation }: any) {
         setConnecting(true);
         setError(null);
         try {
-            const res = await fetch(`${baseUrl}/api/stripe/connect`, {
+            const data = await apiFetchJson('/api/stripe/connect', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id, email: user.email }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to start onboarding');
             if (data.url) {
-                await Linking.openURL(data.url);
+                await Linking.openURL(data.url); // Connect onboarding = browser (correct)
             }
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Something went wrong';

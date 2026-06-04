@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { getSession, clearSession, AuthUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { adminFetch } from "@/lib/admin-fetch";
 import {
     LayoutDashboard,
     Users,
@@ -67,8 +68,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     useEffect(() => {
         const loadNotifications = async () => {
             try {
-                // Read persisted "already seen" IDs from localStorage
+                // Read persisted "already seen" + "dismissed" IDs from localStorage
                 const readIds = new Set<string>(JSON.parse(localStorage.getItem('admin_notif_read') || '[]'));
+                const dismissedIds = new Set<string>(JSON.parse(localStorage.getItem('admin_notif_dismissed') || '[]'));
 
                 const { data: recentBookings } = await supabase
                     .from("bookings")
@@ -138,8 +140,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 );
 
                 items.sort((a, b) => b.time.getTime() - a.time.getTime());
-                setNotifications(items.slice(0, 10));
-                setUnreadCount(items.filter(n => !n.read).length);
+                const visibleItems = items.filter(n => !dismissedIds.has(n.id));
+                setNotifications(visibleItems.slice(0, 10));
+                setUnreadCount(visibleItems.filter(n => !n.read).length);
             } catch (err) {
                 console.error('Failed to load notifications:', err);
             }
@@ -389,20 +392,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                         >
                                             View All Activity
                                         </button>
-                                        <button
-                                            onClick={() => {
-                                                const allIds = notifications.map(n => n.id);
-                                                const readIds = new Set<string>(JSON.parse(localStorage.getItem('admin_notif_read') || '[]'));
-                                                allIds.forEach(id => readIds.add(id));
-                                                localStorage.setItem('admin_notif_read', JSON.stringify(Array.from(readIds)));
-                                                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                                                setUnreadCount(0);
-                                                setShowNotifications(false);
-                                            }}
-                                            className="flex-1 text-center text-xs font-black text-red-400 uppercase tracking-widest py-2 hover:bg-red-500/5 rounded-lg transition-colors"
-                                        >
-                                            Clear All
-                                        </button>
+                                        {notifications.length > 0 && (
+                                            <button
+                                                onClick={() => {
+                                                    const allIds = notifications.map(n => n.id);
+                                                    const dismissed = new Set<string>(JSON.parse(localStorage.getItem('admin_notif_dismissed') || '[]'));
+                                                    allIds.forEach(id => dismissed.add(id));
+                                                    localStorage.setItem('admin_notif_dismissed', JSON.stringify(Array.from(dismissed)));
+                                                    setNotifications([]);
+                                                    setUnreadCount(0);
+                                                    setShowNotifications(false);
+                                                }}
+                                                className="flex-1 text-center text-xs font-black text-red-400 uppercase tracking-widest py-2 hover:bg-red-500/5 rounded-lg transition-colors"
+                                            >
+                                                Clear All
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}

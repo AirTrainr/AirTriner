@@ -12,6 +12,8 @@ import {
     ScreenWrapper, ScreenHeader, Card, Badge, EmptyState, LoadingScreen, Button, Avatar,
 } from '../../components/ui';
 import { Config } from '../../lib/config';
+import { apiFetch, apiFetchJson } from '../../lib/api-fetch';
+import { useStripe } from '@stripe/stripe-react-native';
 import { formatSportName } from '../../lib/format';
 
 type OfferStatus = 'pending' | 'accepted' | 'declined' | 'expired' | string;
@@ -84,6 +86,7 @@ function timeUntil(iso: string | null): string | null {
 
 export default function AthleteOffersScreen({ navigation }: any) {
     const { user } = useAuth();
+    const { initPaymentSheet, presentPaymentSheet } = useStripe();
     const [offers, setOffers] = useState<OfferRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -160,29 +163,42 @@ export default function AthleteOffersScreen({ navigation }: any) {
                 .eq('id', user.id)
                 .single();
 
-            const apiUrl = Config.appUrl;
-            if (!apiUrl) throw new Error('App URL not configured');
+            // Step 1: Get PaymentIntent
+            const { clientSecret, paymentIntentId, ephemeralKey, customerId } =
+                await apiFetchJson('/api/stripe/create-offer-intent', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        offerId: offer.id,
+                        athleteEmail: athleteUser?.email,
+                    }),
+                });
 
-            const res = await fetch(`${apiUrl}/api/stripe/create-offer-payment`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    offerId: offer.id,
-                    athleteId: user.id,
-                    athleteEmail: athleteUser?.email,
-                }),
+            // Step 2: Initialize Payment Sheet
+            const { error: initError } = await initPaymentSheet({
+                merchantDisplayName: 'AirTrainr',
+                customerId,
+                customerEphemeralKeySecret: ephemeralKey,
+                paymentIntentClientSecret: clientSecret,
+                allowsDelayedPaymentMethods: false,
             });
+            if (initError) throw new Error(initError.message);
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to create payment');
+            // Step 3: Present native Payment Sheet
+            const { error: payError } = await presentPaymentSheet();
+            if (payError) {
+                if (payError.code !== 'Canceled') Alert.alert('Payment Failed', payError.message);
+                return;
+            }
 
-            await Linking.openURL(data.url);
+            // Step 4: Verify payment
+            await apiFetchJson('/api/stripe/verify-offer-payment', {
+                method: 'POST',
+                body: JSON.stringify({ paymentIntentId, offerId: offer.id }),
+            }).catch(() => null);
 
             setModalVisible(false);
-            Alert.alert(
-                'Payment Required',
-                'You will be redirected to complete payment. The booking will be created after payment is confirmed.'
-            );
+            Alert.alert('Success!', 'Payment complete. Your booking will be created shortly.');
+            fetchOffers();
         } catch (err: any) {
             console.error('Error accepting offer:', err);
             Alert.alert('Error', err?.message || 'Could not accept the offer. Please try again.');

@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Calendar from 'expo-calendar';
 import * as WebBrowser from 'expo-web-browser';
+import { useStripe } from '@stripe/stripe-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Config } from '../../lib/config';
@@ -157,6 +158,7 @@ export default function BookingDetailScreen({ route, navigation }: any) {
         }
     }, [booking, user, fetchExistingReview]);
 
+    const { initPaymentSheet, presentPaymentSheet } = useStripe();
     const isTrainer = user?.role === 'trainer';
     const otherUser = isTrainer ? booking?.athlete : booking?.trainer;
 
@@ -449,38 +451,57 @@ export default function BookingDetailScreen({ route, navigation }: any) {
         if (!booking || !user) return;
         setIsPaymentLoading(true);
         try {
-            const apiUrl = Config.appUrl;
-            if (!apiUrl) {
-                throw new Error('Payment service is not configured. Please try again later.');
-            }
-            const response = await fetch(`${apiUrl}/api/stripe/create-booking-payment`, {
+            // Step 1: Get PaymentIntent from backend
+            const { clientSecret, paymentIntentId, ephemeralKey, customerId } = await apiFetchJson('/api/stripe/create-payment-intent', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     bookingId: booking.id,
-                    athleteId: user.id,
                     athleteEmail: user.email,
                 }),
             });
 
-            const data = await response.json();
+            // Step 2: Initialize Payment Sheet
+            const { error: initError } = await initPaymentSheet({
+                merchantDisplayName: 'AirTrainr',
+                customerId,
+                customerEphemeralKeySecret: ephemeralKey,
+                paymentIntentClientSecret: clientSecret,
+                allowsDelayedPaymentMethods: false,
+                defaultBillingDetails: { email: user.email },
+            });
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to create payment session');
-            }
+            if (initError) throw new Error(initError.message);
 
-            if (data.url) {
-                const result = await WebBrowser.openBrowserAsync(data.url, {
-                    dismissButtonStyle: 'cancel',
-                    presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-                });
+            // Step 3: Present native Payment Sheet
+            const { error: payError } = await presentPaymentSheet();
 
-                if (result.type === 'cancel' || result.type === 'dismiss') {
-                    await new Promise(resolve => setTimeout(resolve, 1500));
+            if (payError) {
+                if (payError.code !== 'Canceled') {
+                    Alert.alert('Payment Failed', payError.message);
                 }
-                await checkPaymentStatus(booking.id);
-                await fetchBooking();
+                return;
             }
+
+            // Step 4: Verify with correct PaymentIntent endpoint
+            await apiFetchJson('/api/stripe/verify-payment-intent', {
+                method: 'POST',
+                body: JSON.stringify({ paymentIntentId, bookingId: booking.id }),
+            }).catch(() => null); // webhook backup if this fails
+
+            // Step 5: Poll until paid (max 10s)
+            setPaymentStatus('checking');
+            for (let i = 0; i < 5; i++) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await checkPaymentStatus(booking.id);
+                const { data } = await (supabase
+                    .from('payment_transactions')
+                    .select('id')
+                    .eq('booking_id', booking.id)
+                    .maybeSingle());
+                if (data) break;
+            }
+            await fetchBooking();
+
         } catch (error: any) {
             Alert.alert('Payment Error', error.message || 'Something went wrong with the payment.');
         } finally {

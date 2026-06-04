@@ -486,6 +486,62 @@ export async function POST(req: NextRequest) {
             }
 
             // ----------------------------------------
+            // PaymentIntent succeeded — native Payment Sheet
+            // ----------------------------------------
+            case 'payment_intent.succeeded': {
+                const pi = event.data.object as Stripe.PaymentIntent;
+                if (pi.metadata?.type !== 'booking') break;
+
+                const { bookingId, athleteId, trainerId, amount, platformFee, stripeFee, taxAmount, taxLabel, trainerPayout } = pi.metadata || {};
+                if (!bookingId) break;
+
+                // Idempotency check — by booking_id OR payment_intent_id
+                const { data: existingPi } = await supabaseAdmin
+                    .from('payment_transactions')
+                    .select('id')
+                    .or(`booking_id.eq.${bookingId},stripe_payment_intent_id.eq.${pi.id}`)
+                    .maybeSingle();
+                if (existingPi) break;
+
+                const { count: completedCountPi } = await supabaseAdmin
+                    .from('bookings')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('trainer_id', trainerId)
+                    .eq('status', 'completed');
+                const holdHoursPi = (completedCountPi ?? 0) >= 10 ? 24 : 72;
+                const holdUntilPi = new Date(Date.now() + holdHoursPi * 60 * 60 * 1000);
+
+                const { error: piTxError } = await supabaseAdmin
+                    .from('payment_transactions')
+                    .insert({
+                        booking_id: bookingId,
+                        stripe_payment_intent_id: pi.id,
+                        amount: Number(amount),
+                        platform_fee: Number(platformFee),
+                        stripe_fee: Number(stripeFee || 0),
+                        tax_amount: Number(taxAmount || 0),
+                        tax_label: taxLabel || null,
+                        trainer_payout: Number(trainerPayout),
+                        status: 'held',
+                        hold_until: holdUntilPi.toISOString(),
+                    });
+
+                if (!piTxError) {
+                    await supabaseAdmin.from('notifications').insert({
+                        user_id: trainerId,
+                        type: 'PAYMENT_RECEIVED',
+                        title: 'Payment Received',
+                        body: `Athlete has paid $${Number(amount).toFixed(2)} for your upcoming session. Funds are held in escrow.`,
+                        data: { booking_id: bookingId },
+                        read: false,
+                    });
+                    await supabaseAdmin.from('bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', bookingId);
+                    console.log(`[webhook] PaymentIntent booking payment recorded: ${bookingId}`);
+                }
+                break;
+            }
+
+            // ----------------------------------------
             // Recurring invoice paid — extend subscription
             // ----------------------------------------
             case 'invoice.payment_succeeded': {
