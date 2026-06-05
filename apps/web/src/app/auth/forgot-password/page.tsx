@@ -49,19 +49,31 @@ export default function ForgotPasswordPage() {
         }
         setLoading(true)
         try {
+            console.log('[forgot-password] Sending reset email to:', email.trim())
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
                 redirectTo: `${window.location.origin}/auth/reset-password`,
             })
-            if (resetError) throw resetError
+            if (resetError) {
+                console.error('[forgot-password] Supabase error:', {
+                    message: resetError.message,
+                    status: (resetError as any).status,
+                    code: (resetError as any).code,
+                    full: resetError,
+                })
+                throw resetError
+            }
+            console.log('[forgot-password] Email sent successfully')
             setSent(true)
             setCooldown(RESEND_COOLDOWN_SECONDS)
             localStorage.setItem(COOLDOWN_KEY, String(Date.now() + RESEND_COOLDOWN_SECONDS * 1000))
             toast.success('Reset link sent — check your inbox')
         } catch (err: unknown) {
             const raw = err instanceof Error ? err.message : ''
-            // Supabase surfaces rate-limit failures with this exact phrase.
-            // Translate to something actionable instead of a backend dump —
-            // the IP-level limit resets after roughly an hour.
+            console.error('[forgot-password] Caught error:', {
+                message: raw,
+                type: typeof err,
+                full: err,
+            })
             if (/rate limit/i.test(raw)) {
                 toast.error('Too many reset attempts from this network. Please wait about an hour, or try from a different connection.')
             } else {
