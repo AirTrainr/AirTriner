@@ -103,7 +103,7 @@ export default function ProfileScreen({ navigation }: any) {
                 ...(!isTrainer ? [
                     { icon: 'people-outline' as const, label: 'Sub-Accounts', screen: 'SubAccounts', badge: `${subAccountCount}/${MAX_SUB_ACCOUNTS}` },
                 ] : []),
-                { icon: 'card-outline' as const, label: 'Payment Methods', screen: 'PaymentMethods' },
+                { icon: 'card-outline' as const, label: isTrainer ? 'Payment Methods' : 'Payments', screen: 'PaymentMethods' },
             ],
         },
         ...(isTrainer ? [{
