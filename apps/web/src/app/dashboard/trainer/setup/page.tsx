@@ -188,7 +188,7 @@ export default function TrainerEditProfilePage() {
 
                 let initialCerts = "";
                 if (typeof latestProfile.certifications === "string") initialCerts = latestProfile.certifications;
-                else if (Array.isArray(latestProfile.certifications)) initialCerts = latestProfile.certifications.join("\n");
+                else if (Array.isArray(latestProfile.certifications)) initialCerts = latestProfile.certifications.map((c: any) => typeof c === 'string' ? c : c?.name || '').filter(Boolean).join("\n");
 
                 setFormData(prev => ({
                     ...prev,
