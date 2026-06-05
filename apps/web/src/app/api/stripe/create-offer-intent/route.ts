@@ -52,11 +52,19 @@ export async function POST(req: NextRequest) {
             if (tp?.user_id) resolvedTrainerUserId = tp.user_id;
         }
 
+        // Trainer country for HST calculation
+        const { data: trainerProfile } = await supabase
+            .from('trainer_profiles')
+            .select('country')
+            .eq('user_id', resolvedTrainerUserId)
+            .maybeSingle();
+
         // Fees
         const { data: settings } = await supabase.from('platform_settings').select('platform_fee_percentage').maybeSingle();
         const fees = calculateFees({
             price: Number(offer.price),
             platformFeePercentage: settings?.platform_fee_percentage,
+            trainerCountry: trainerProfile?.country,
         });
 
         const amountCents = Math.round(fees.totalPaid * 100);
