@@ -52,7 +52,7 @@ export default function CustomDrawerContent(props: any) {
                 { label: 'Profile', icon: 'person-outline', screen: 'Profile', roles: ['athlete', 'trainer', 'admin'] },
                 { label: 'Edit Profile', icon: 'create-outline', screen: 'EditProfile', roles: ['athlete', 'trainer', 'admin'] },
                 { label: 'Notifications', icon: 'notifications-outline', screen: 'Notifications', roles: ['athlete', 'trainer', 'admin'] },
-                { label: 'Verification', icon: 'shield-checkmark-outline', screen: 'Verification', roles: ['athlete', 'trainer', 'admin'] },
+                { label: 'Verification', icon: 'shield-checkmark-outline', screen: 'Verification', roles: ['trainer', 'admin'] },
                 { label: 'Sub Accounts', icon: 'people-outline', screen: 'SubAccounts', roles: ['athlete'] },
             ],
         },
@@ -69,7 +69,8 @@ export default function CustomDrawerContent(props: any) {
         {
             title: 'Payments',
             items: [
-                { label: 'Payment Methods', icon: 'card-outline', screen: 'PaymentMethods', roles: ['athlete', 'trainer'] },
+                { label: 'Payments', icon: 'card-outline', screen: 'PaymentMethods', roles: ['athlete'] },
+                { label: 'Payment Methods', icon: 'card-outline', screen: 'PaymentMethods', roles: ['trainer'] },
                 { label: 'Earnings', icon: 'wallet-outline', screen: 'Earnings', roles: ['trainer'] },
                 { label: 'Subscription', icon: 'diamond-outline', screen: 'Subscription', roles: ['trainer'] },
             ],
