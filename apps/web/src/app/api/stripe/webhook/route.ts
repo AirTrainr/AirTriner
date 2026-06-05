@@ -490,54 +490,161 @@ export async function POST(req: NextRequest) {
             // ----------------------------------------
             case 'payment_intent.succeeded': {
                 const pi = event.data.object as Stripe.PaymentIntent;
-                if (pi.metadata?.type !== 'booking') break;
+                const piType = pi.metadata?.type;
 
-                const { bookingId, athleteId, trainerId, amount, platformFee, stripeFee, taxAmount, taxLabel, trainerPayout } = pi.metadata || {};
-                if (!bookingId) break;
+                // ── Booking payment (native Payment Sheet backup) ──
+                if (piType === 'booking') {
+                    const { bookingId, athleteId, trainerId, amount, platformFee, stripeFee, taxAmount, taxLabel, trainerPayout } = pi.metadata || {};
+                    if (!bookingId) break;
 
-                // Idempotency check — by booking_id OR payment_intent_id
-                const { data: existingPi } = await supabaseAdmin
-                    .from('payment_transactions')
-                    .select('id')
-                    .or(`booking_id.eq.${bookingId},stripe_payment_intent_id.eq.${pi.id}`)
-                    .maybeSingle();
-                if (existingPi) break;
+                    // Idempotency check — by booking_id OR payment_intent_id
+                    const { data: existingPi } = await supabaseAdmin
+                        .from('payment_transactions')
+                        .select('id')
+                        .or(`booking_id.eq.${bookingId},stripe_payment_intent_id.eq.${pi.id}`)
+                        .maybeSingle();
+                    if (existingPi) break;
 
-                const { count: completedCountPi } = await supabaseAdmin
-                    .from('bookings')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('trainer_id', trainerId)
-                    .eq('status', 'completed');
-                const holdHoursPi = (completedCountPi ?? 0) >= 10 ? 24 : 72;
-                const holdUntilPi = new Date(Date.now() + holdHoursPi * 60 * 60 * 1000);
+                    const { count: completedCountPi } = await supabaseAdmin
+                        .from('bookings')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('trainer_id', trainerId)
+                        .eq('status', 'completed');
+                    const holdHoursPi = (completedCountPi ?? 0) >= 10 ? 24 : 72;
+                    const holdUntilPi = new Date(Date.now() + holdHoursPi * 60 * 60 * 1000);
 
-                const { error: piTxError } = await supabaseAdmin
-                    .from('payment_transactions')
-                    .insert({
-                        booking_id: bookingId,
+                    const { error: piTxError } = await supabaseAdmin
+                        .from('payment_transactions')
+                        .insert({
+                            booking_id: bookingId,
+                            stripe_payment_intent_id: pi.id,
+                            amount: Number(amount),
+                            platform_fee: Number(platformFee),
+                            stripe_fee: Number(stripeFee || 0),
+                            tax_amount: Number(taxAmount || 0),
+                            tax_label: taxLabel || null,
+                            trainer_payout: Number(trainerPayout),
+                            status: 'held',
+                            hold_until: holdUntilPi.toISOString(),
+                        });
+
+                    if (!piTxError) {
+                        await supabaseAdmin.from('notifications').insert({
+                            user_id: trainerId,
+                            type: 'PAYMENT_RECEIVED',
+                            title: 'Payment Received',
+                            body: `Athlete has paid $${Number(amount).toFixed(2)} for your upcoming session. Funds are held in escrow.`,
+                            data: { booking_id: bookingId },
+                            read: false,
+                        });
+                        await supabaseAdmin.from('bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', bookingId);
+                        console.log(`[webhook] PaymentIntent booking payment recorded: ${bookingId}`);
+                    }
+                    break;
+                }
+
+                // ── Offer accept payment (native Payment Sheet backup) ──
+                // Primary path: verify-offer-payment creates booking + tx.
+                // This fires only if that route failed or was skipped.
+                if (piType === 'offer_accept') {
+                    const {
+                        offerId, athleteId, trainerId, sport,
+                        scheduledAt, sessionLengthMin, message,
+                        price, platformFee, stripeFee, taxAmount, taxLabel,
+                        totalAmount, campName,
+                    } = pi.metadata || {};
+
+                    if (!offerId) break;
+
+                    // Idempotency: skip if offer already accepted
+                    const { data: existingOffer } = await supabaseAdmin
+                        .from('training_offers')
+                        .select('status')
+                        .eq('id', offerId)
+                        .single();
+                    if (existingOffer?.status === 'accepted') break;
+
+                    const bookingScheduledAt = scheduledAt || new Date().toISOString();
+
+                    // Create booking
+                    const { data: newBooking, error: bookingErr } = await supabaseAdmin
+                        .from('bookings')
+                        .insert({
+                            athlete_id: athleteId,
+                            trainer_id: trainerId,
+                            sport: sport || 'General Training',
+                            scheduled_at: bookingScheduledAt,
+                            duration_minutes: Number(sessionLengthMin) || 60,
+                            price: Number(price),
+                            platform_fee: Number(platformFee || 0),
+                            stripe_fee: Number(stripeFee || 0),
+                            tax_amount: Number(taxAmount || 0),
+                            tax_label: taxLabel || null,
+                            total_paid: Number(totalAmount),
+                            status: 'pending',
+                            athlete_notes: message ? `Accepted offer: ${message}` : null,
+                        })
+                        .select('id')
+                        .single();
+
+                    if (bookingErr || !newBooking) {
+                        console.error('[webhook] offer_accept: failed to create booking:', bookingErr);
+                        break;
+                    }
+
+                    // Update offer status
+                    await supabaseAdmin
+                        .from('training_offers')
+                        .update({ status: 'accepted' })
+                        .eq('id', offerId);
+
+                    // Escrow hold
+                    const { count: offerCompletedCount } = await supabaseAdmin
+                        .from('bookings')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('trainer_id', trainerId)
+                        .eq('status', 'completed');
+                    const offerHoldHours = (offerCompletedCount ?? 0) >= 10 ? 24 : 72;
+                    const offerHoldUntil = new Date(Date.now() + offerHoldHours * 60 * 60 * 1000);
+
+                    await supabaseAdmin.from('payment_transactions').insert({
+                        booking_id: newBooking.id,
                         stripe_payment_intent_id: pi.id,
-                        amount: Number(amount),
-                        platform_fee: Number(platformFee),
+                        amount: Number(totalAmount),
+                        platform_fee: Number(platformFee || 0),
                         stripe_fee: Number(stripeFee || 0),
                         tax_amount: Number(taxAmount || 0),
                         tax_label: taxLabel || null,
-                        trainer_payout: Number(trainerPayout),
+                        trainer_payout: Number(price),
                         status: 'held',
-                        hold_until: holdUntilPi.toISOString(),
+                        hold_until: offerHoldUntil.toISOString(),
                     });
 
-                if (!piTxError) {
+                    // Camp spot management
+                    if (campName && trainerId) {
+                        await supabaseAdmin.rpc('book_camp_spot', {
+                            p_user_id: trainerId,
+                            p_camp_name: campName,
+                            p_idempotency_key: newBooking.id,
+                        }).then(({ error }) => {
+                            if (error) console.error('[webhook] offer_accept book_camp_spot failed:', error);
+                        });
+                    }
+
+                    // Notify trainer
                     await supabaseAdmin.from('notifications').insert({
                         user_id: trainerId,
                         type: 'PAYMENT_RECEIVED',
-                        title: 'Payment Received',
-                        body: `Athlete has paid $${Number(amount).toFixed(2)} for your upcoming session. Funds are held in escrow.`,
-                        data: { booking_id: bookingId },
+                        title: 'Offer Accepted & Payment Received',
+                        body: `Athlete accepted your training offer and paid $${Number(totalAmount).toFixed(2)}. Funds held in escrow.`,
+                        data: { booking_id: newBooking.id, offer_id: offerId },
                         read: false,
                     });
-                    await supabaseAdmin.from('bookings').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', bookingId);
-                    console.log(`[webhook] PaymentIntent booking payment recorded: ${bookingId}`);
+
+                    console.log(`[webhook] offer_accept backup: offer ${offerId} → booking ${newBooking.id}`);
+                    break;
                 }
+
                 break;
             }
 
