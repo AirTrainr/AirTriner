@@ -10,6 +10,7 @@ test.describe("Authentication", () => {
 
     test("Login page loads", async ({ page }) => {
         await page.goto(`${BASE_URL}/auth/login`);
+        
         await assertPageLoaded(page);
         await expect(page.locator('input[type="email"]')).toBeVisible();
         await expect(page.locator('input[type="password"]')).toBeVisible();
