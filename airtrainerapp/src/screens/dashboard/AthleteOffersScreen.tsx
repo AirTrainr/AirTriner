@@ -190,15 +190,27 @@ export default function AthleteOffersScreen({ navigation }: any) {
                 return;
             }
 
-            // Step 4: Verify payment
-            await apiFetchJson('/api/stripe/verify-offer-payment', {
+            // Step 4: Verify payment + create booking
+            const verifyResult = await apiFetchJson('/api/stripe/verify-offer-payment', {
                 method: 'POST',
                 body: JSON.stringify({ paymentIntentId, offerId: offer.id }),
             }).catch(() => null);
 
             setModalVisible(false);
-            Alert.alert('Success!', 'Payment complete. Your booking will be created shortly.');
             fetchOffers();
+
+            if (verifyResult?.bookingId) {
+                Alert.alert(
+                    'Payment Successful!',
+                    'Your booking has been created.',
+                    [
+                        { text: 'View Booking', onPress: () => navigation.navigate('BookingDetail', { bookingId: verifyResult.bookingId }) },
+                        { text: 'OK' },
+                    ]
+                );
+            } else {
+                Alert.alert('Payment Complete', 'Your booking will be created shortly.');
+            }
         } catch (err: any) {
             console.error('Error accepting offer:', err);
             Alert.alert('Error', err?.message || 'Could not accept the offer. Please try again.');
