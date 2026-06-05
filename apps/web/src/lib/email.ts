@@ -2,7 +2,7 @@
 
 
 // AirTrainr Web — Transactional email service
-// Uses nodemailer with GoDaddy SMTP (contact@airtrainr.com)
+// Uses nodemailer with Microsoft 365 SMTP (contact@airtrainr.com, GoDaddy M365)
 // All templates share a single table-based, email-client-safe layout.
 // ============================================
 
@@ -14,9 +14,10 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
     if (transporter) return transporter;
 
     transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtpout.secureserver.net',
-        port: parseInt(process.env.SMTP_PORT || '465', 10),
-        secure: process.env.SMTP_SECURE !== 'false',
+        host: process.env.SMTP_HOST || 'smtp.office365.com',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        // M365 uses STARTTLS on 587 -> secure must be false. Only true for implicit-TLS port 465.
+        secure: process.env.SMTP_SECURE === 'true',
         auth: {
             user: process.env.SMTP_USER || 'contact@airtrainr.com',
             pass: process.env.SMTP_PASS || '',
