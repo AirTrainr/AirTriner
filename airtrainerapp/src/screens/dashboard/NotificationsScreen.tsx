@@ -270,6 +270,10 @@ export default function NotificationsScreen({ navigation }: any) {
 
             case 'MESSAGE_RECEIVED':
             case 'NEW_MESSAGE':
+                if (getOfferIdFromNotification(notif)) {
+                    navigation.navigate('AthleteOffers');
+                    return;
+                }
                 if (bookingId) {
                     (async () => {
                         const { data: booking } = await supabase
