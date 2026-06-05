@@ -92,7 +92,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
     const [refreshing, setRefreshing] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedOffer, setSelectedOffer] = useState<OfferRow | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const fetchOffers = useCallback(async () => {
         if (!user) return;
@@ -155,7 +155,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
 
     const handleAccept = async (offer: OfferRow) => {
         if (!user) return;
-        setActionLoading(true);
+        setActionLoading(offer.id);
         try {
             const { data: athleteUser } = await supabase
                 .from('users')
@@ -215,12 +215,12 @@ export default function AthleteOffersScreen({ navigation }: any) {
             console.error('Error accepting offer:', err);
             Alert.alert('Error', err?.message || 'Could not accept the offer. Please try again.');
         } finally {
-            setActionLoading(false);
+            setActionLoading(null);
         }
     };
 
     const handleDecline = async (offer: OfferRow) => {
-        setActionLoading(true);
+        setActionLoading(offer.id);
         try {
             const { error } = await supabase
                 .from('training_offers')
@@ -244,7 +244,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
             console.error('Error declining offer:', err);
             Alert.alert('Error', 'Could not decline the offer. Please try again.');
         } finally {
-            setActionLoading(false);
+            setActionLoading(null);
         }
     };
 
@@ -348,7 +348,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                         variant="secondary"
                                         size="sm"
                                         icon="close"
-                                        disabled={actionLoading}
+                                        disabled={actionLoading === offer.id}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
@@ -358,7 +358,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                         variant="primary"
                                         size="sm"
                                         icon="checkmark"
-                                        disabled={actionLoading}
+                                        loading={actionLoading === offer.id}
+                                        disabled={actionLoading === offer.id}
                                     />
                                 </View>
                             </View>
@@ -499,8 +500,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                                 onPress={() => handleDecline(selectedOffer)}
                                                 variant="danger"
                                                 icon="close"
-                                                loading={actionLoading}
-                                                disabled={actionLoading}
+                                                loading={actionLoading === selectedOffer.id}
+                                                disabled={actionLoading === selectedOffer.id}
                                             />
                                         </View>
                                         <View style={{ flex: 1 }}>
@@ -509,8 +510,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                                 onPress={() => handleAccept(selectedOffer)}
                                                 variant="primary"
                                                 icon="checkmark"
-                                                loading={actionLoading}
-                                                disabled={actionLoading}
+                                                loading={actionLoading === selectedOffer.id}
+                                                disabled={actionLoading === selectedOffer.id}
                                             />
                                         </View>
                                     </View>
