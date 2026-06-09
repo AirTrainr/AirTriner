@@ -724,17 +724,19 @@ export default function BookingDetailScreen({ route, navigation }: any) {
                     <InfoRow
                         icon="remove-circle"
                         label="Platform Fee (3%)"
-                        value={`-$${Number(booking.platform_fee || 0).toFixed(2)}`}
+                        value={isTrainer
+                            ? `-$${Number(booking.platform_fee || 0).toFixed(2)}`
+                            : `+$${Number(booking.platform_fee || 0).toFixed(2)}`}
                     />
                     <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
                         <Ionicons name="wallet" size={18} color={Colors.primary} />
                         <Text style={[styles.infoLabel, { fontWeight: FontWeight.bold }]}>
-                            {isTrainer ? 'Your Payout' : 'Total Paid'}
+                            {isTrainer ? 'Your Payout' : (paymentStatus === 'paid' ? 'Total Paid' : 'Total Due')}
                         </Text>
                         <Text style={[styles.infoValue, { fontWeight: FontWeight.bold }]}>
                             ${isTrainer
                                 ? (Number(booking.price) - Number(booking.platform_fee || 0)).toFixed(2)
-                                : Number(booking.total_paid || booking.price).toFixed(2)}
+                                : (booking.total_paid > 0 ? Number(booking.total_paid) : Number(booking.price) + Number(booking.platform_fee || 0) + Number(booking.stripe_fee || 0) + Number(booking.tax_amount || 0)).toFixed(2)}
                         </Text>
                     </View>
                 </View>
@@ -901,7 +903,7 @@ export default function BookingDetailScreen({ route, navigation }: any) {
                             {booking.status === 'confirmed' && paymentStatus === 'unpaid' && (
                                 <View style={styles.actionSpacingBottom}>
                                     <Button
-                                        title={`Pay Now — $${Number(booking.total_paid || booking.price).toFixed(2)}`}
+                                        title={`Pay Now — $${(booking.total_paid > 0 ? Number(booking.total_paid) : Number(booking.price) + Number(booking.platform_fee || 0) + Number(booking.stripe_fee || 0) + Number(booking.tax_amount || 0)).toFixed(2)}`}
                                         icon="card"
                                         onPress={handlePayNow}
                                         loading={isPaymentLoading}

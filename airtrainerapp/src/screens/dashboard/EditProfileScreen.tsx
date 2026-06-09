@@ -22,6 +22,7 @@ import {
 import {
     ScreenWrapper, Card, Button, Input, Avatar, Divider,
 } from '../../components/ui';
+import { normalizeSport } from '../../lib/format';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -36,7 +37,11 @@ const TRAINING_TYPES = [
     { key: 'in_season', label: 'In-Season' },
 ];
 const TRAINING_TIMES = ['morning', 'afternoon', 'evening'];
-const SEX_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const SEX_OPTIONS: { value: string; label: string }[] = [
+    { value: 'male', label: 'Male' },
+    { value: 'female', label: 'Female' },
+    { value: 'other', label: 'Other' },
+];
 
 type SessionPricingState = Record<`${AllowedDuration}`, { price: string; enabled: boolean }>;
 
@@ -166,7 +171,9 @@ export default function EditProfileScreen({ navigation }: any) {
     const [bio, setBio] = useState(tp?.bio || '');
     const [yearsExp, setYearsExp] = useState(String(tp?.years_experience || '0'));
     const [selectedSports, setSelectedSports] = useState<string[]>(
-        isTrainer ? (tp?.sports || []) : (user?.athleteProfile?.sports || [])
+        isTrainer
+            ? [...new Set((tp?.sports || []).map((s: string) => normalizeSport(s)))]
+            : [...new Set((user?.athleteProfile?.sports || []).map((s: string) => normalizeSport(s)))]
     );
     const [selectedTrainingTypes, setSelectedTrainingTypes] = useState<string[]>((tp as any)?.trainingTypes || []);
     const [city, setCity] = useState(tp?.city || user?.athleteProfile?.city || '');
@@ -211,7 +218,9 @@ export default function EditProfileScreen({ navigation }: any) {
         }
         return String(storedRadiusMiles);
     });
-    const [sportsList, setSportsList] = useState<string[]>(FALLBACK_SPORTS);
+    const [sportsList, setSportsList] = useState<{ name: string; slug: string }[]>(
+        FALLBACK_SPORTS.map(s => ({ name: s, slug: normalizeSport(s) }))
+    );
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -219,9 +228,11 @@ export default function EditProfileScreen({ navigation }: any) {
     /* ── data fetch ── */
     useEffect(() => {
         (async () => {
-            const { data } = await supabase.from('sports').select('name').eq('is_active', true).order('name');
+            const { data } = await supabase.from('sports').select('name, slug').eq('is_active', true).order('name');
             if (data && data.length > 0) {
-                setSportsList(data.map((s: any) => s.name));
+                const mapped = data.map((s: any) => ({ name: s.name.trim(), slug: normalizeSport(s.slug || s.name) }));
+                const deduped = mapped.filter((sport, idx, self) => self.findIndex(s => s.slug === sport.slug) === idx);
+                setSportsList(deduped);
             }
         })();
         (async () => {
@@ -734,10 +745,10 @@ export default function EditProfileScreen({ navigation }: any) {
                         <View style={styles.chipContainer}>
                             {SEX_OPTIONS.map((option) => (
                                 <Chip
-                                    key={option}
-                                    label={option}
-                                    active={sex === option}
-                                    onPress={() => { setSex(sex === option ? '' : option); setFieldErrors((p) => { const n = { ...p }; delete n.sex; return n; }); }}
+                                    key={option.value}
+                                    label={option.label}
+                                    active={sex === option.value}
+                                    onPress={() => { setSex(sex === option.value ? '' : option.value); setFieldErrors((p) => { const n = { ...p }; delete n.sex; return n; }); }}
                                 />
                             ))}
                         </View>
@@ -992,10 +1003,10 @@ export default function EditProfileScreen({ navigation }: any) {
                 <View style={styles.chipContainer}>
                     {sportsList.map((sport) => (
                         <Chip
-                            key={sport}
-                            label={sport}
-                            active={selectedSports.includes(sport)}
-                            onPress={() => toggleSport(sport)}
+                            key={sport.slug}
+                            label={sport.name}
+                            active={selectedSports.includes(sport.slug)}
+                            onPress={() => toggleSport(sport.slug)}
                         />
                     ))}
                 </View>

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         // Fetch booking + validate ownership
         const { data: booking } = await supabase
             .from('bookings')
-            .select('*, users!bookings_trainer_id_fkey(id, role, is_suspended, deleted_at, first_name, last_name)')
+            .select('*, users!bookings_trainer_id_fkey(id, role, is_suspended, deleted_at, first_name, last_name, phone, date_of_birth, avatar_url)')
             .eq('id', bookingId)
             .eq('athlete_id', athleteId)
             .eq('status', 'confirmed')

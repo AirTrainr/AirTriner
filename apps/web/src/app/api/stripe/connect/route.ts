@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { requireSessionUser } from '@/lib/session-auth';
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,24 +18,28 @@ function getStripe() {
 
 // POST — Create connected account (if needed) + return onboarding link
 export async function POST(req: NextRequest) {
+    const auth = await requireSessionUser(req);
+    if ('error' in auth) return auth.error;
+
     try {
         const stripe = getStripe();
-        const { userId, email } = await req.json();
+        const { email } = await req.json();
+        const userId = auth.user.id;
 
-        if (!userId || !email) {
-            return NextResponse.json({ error: 'Missing userId or email' }, { status: 400 });
+        if (!email) {
+            return NextResponse.json({ error: 'Missing email' }, { status: 400 });
         }
 
-        // Auth: verify the user exists and is a trainer
-        const { data: authUser, error: authError } = await supabaseAdmin
+        // Verify the authenticated user is a trainer
+        const { data: authUser } = await supabaseAdmin
             .from('users')
             .select('id, role')
             .eq('id', userId)
             .eq('role', 'trainer')
             .single();
 
-        if (authError || !authUser) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        if (!authUser) {
+            return NextResponse.json({ error: 'Unauthorized — trainer role required' }, { status: 403 });
         }
 
         // 1. Check if trainer already has a stripe_account_id

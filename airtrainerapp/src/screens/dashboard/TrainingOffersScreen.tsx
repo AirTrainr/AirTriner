@@ -677,24 +677,33 @@ export default function TrainingOffersScreen({ navigation }: any) {
                 ...(selectedCamp !== null && camps[selectedCamp] ? { camp: camps[selectedCamp] } : {}),
             };
 
-            const { error } = await supabase.from('training_offers').insert({
-                trainer_id: trainerProfile.id,
-                athlete_id: selectedAthlete.id,
-                message: offerMessage.trim(),
-                price: priceVal,
-                session_length_min: sessionLength,
-                sport: selectedSport || null,
-                proposed_dates: proposedDates,
-                status: 'pending',
-            });
+            const { data: insertedOffer, error } = await supabase
+                .from('training_offers')
+                .insert({
+                    trainer_id: user.id,
+                    athlete_id: selectedAthlete.id,
+                    message: offerMessage.trim(),
+                    price: priceVal,
+                    session_length_min: sessionLength,
+                    sport: selectedSport || null,
+                    proposed_dates: proposedDates,
+                    status: 'pending',
+                })
+                .select('id')
+                .single();
             if (error) throw error;
 
             await supabase.from('notifications').insert({
                 user_id: selectedAthlete.id,
-                type: 'TRAINING_OFFER',
+                type: 'MESSAGE_RECEIVED',
                 title: 'New Training Offer',
                 body: `You received a training offer${selectedSport ? ` for ${selectedSport}` : ''}`,
-                data: { offerId: 'will-be-set-by-trigger' },
+                data: {
+                    offer_id: insertedOffer.id,
+                    trainer_id: user.id,
+                    trainer_name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                    sport: selectedSport || null,
+                },
                 read: false,
             });
 

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { requireSessionUser } from '@/lib/session-auth';
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,18 +12,17 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET(req: NextRequest) {
+    const auth = await requireSessionUser(req);
+    if ('error' in auth) return auth.error;
+
     try {
         if (!process.env.STRIPE_SECRET_KEY) {
             return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
         }
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-02-25.clover' });
-        const userId = req.nextUrl.searchParams.get('userId');
+        const userId = auth.user.id;
 
-        if (!userId) {
-            return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-        }
-
-        // Auth: verify the user is a trainer
+        // Verify the authenticated user is a trainer
         const { data: authUser } = await supabaseAdmin
             .from('users')
             .select('id, role')
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
             .single();
 
         if (!authUser) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+            return NextResponse.json({ error: 'Unauthorized — trainer role required' }, { status: 403 });
         }
 
         // Get trainer's stripe_account_id

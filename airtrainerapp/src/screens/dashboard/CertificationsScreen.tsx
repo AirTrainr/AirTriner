@@ -27,9 +27,14 @@ type Certification = {
 export default function CertificationsScreen({ navigation }: any) {
     const { user, refreshUser } = useAuth();
 
-    const rawCerts = Array.isArray(user?.trainerProfile?.certifications)
-        ? (user.trainerProfile.certifications as any[])
-        : [];
+    const rawCerts = (() => {
+        const c = user?.trainerProfile?.certifications;
+        if (Array.isArray(c)) return c;
+        if (typeof c === 'string' && c.trim()) {
+            return c.split('\n').filter(Boolean).map((name: string) => ({ name }));
+        }
+        return [];
+    })();
     const certs: Certification[] = rawCerts.map((c: any) =>
         typeof c === 'string' ? { name: c } : c,
     );

@@ -103,7 +103,7 @@ export default function ProfileScreen({ navigation }: any) {
                 ...(!isTrainer ? [
                     { icon: 'people-outline' as const, label: 'Sub-Accounts', screen: 'SubAccounts', badge: `${subAccountCount}/${MAX_SUB_ACCOUNTS}` },
                 ] : []),
-                { icon: 'card-outline' as const, label: 'Payment Methods', screen: 'PaymentMethods' },
+                { icon: 'card-outline' as const, label: isTrainer ? 'Payment Methods' : 'Payments', screen: 'PaymentMethods' },
             ],
         },
         ...(isTrainer ? [{
@@ -278,10 +278,10 @@ export default function ProfileScreen({ navigation }: any) {
                         {/* Sports tags */}
                         {tp.sports && tp.sports.length > 0 && (
                             <View style={styles.tagsRow}>
-                                {tp.sports.map((sport: string, i: number) => {
+                                {[...new Set(tp.sports)].map((sport: string, i: number) => {
                                     const color = TAG_COLORS[i % TAG_COLORS.length];
                                     return (
-                                        <View key={sport} style={[styles.tag, { backgroundColor: color.bg }]}>
+                                        <View key={`${sport}-${i}`} style={[styles.tag, { backgroundColor: color.bg }]}>
                                             <Text style={[styles.tagText, { color: color.text }]}>
                                                 {formatSportName(sport)}
                                             </Text>
@@ -363,10 +363,10 @@ export default function ProfileScreen({ navigation }: any) {
                             <>
                                 <Text style={styles.detailSectionLabel}>Sports</Text>
                                 <View style={styles.tagsRow}>
-                                    {ap.sports.map((sport: string, i: number) => {
+                                    {[...new Set(ap.sports)].map((sport: string, i: number) => {
                                         const color = TAG_COLORS[i % TAG_COLORS.length];
                                         return (
-                                            <View key={sport} style={[styles.tag, { backgroundColor: color.bg }]}>
+                                            <View key={`${sport}-${i}`} style={[styles.tag, { backgroundColor: color.bg }]}>
                                                 <Text style={[styles.tagText, { color: color.text }]}>
                                                     {formatSportName(sport)}
                                                 </Text>

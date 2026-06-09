@@ -76,8 +76,15 @@ function getStatusLabel(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function TransactionItem({ tx }: { tx: Transaction }) {
-    const displayAmount = tx.total_paid ?? tx.amount;
+function TransactionItem({ tx, isTrainer }: { tx: Transaction; isTrainer: boolean }) {
+    const isRefunded = tx.status === 'refunded';
+    const displayAmount = isTrainer
+        ? (tx as any).trainer_payout ?? tx.amount
+        : tx.total_paid ?? tx.amount;
+    const sign = isTrainer ? '+' : isRefunded ? '+' : '-';
+    const amountColor = isTrainer
+        ? Colors.success
+        : isRefunded ? Colors.success : Colors.error;
 
     return (
         <View style={styles.txItem}>
@@ -86,7 +93,7 @@ function TransactionItem({ tx }: { tx: Transaction }) {
             </View>
             <View style={styles.txInfo}>
                 <View style={styles.txTopRow}>
-                    <Text style={styles.txAmount}>+{formatCurrency(displayAmount)}</Text>
+                    <Text style={[styles.txAmount, { color: amountColor }]}>{sign}{formatCurrency(displayAmount)}</Text>
                     <Badge
                         label={getStatusLabel(tx.status)}
                         color={getStatusColor(tx.status)}
@@ -498,33 +505,11 @@ export default function PaymentMethodsScreen({ navigation }: any) {
                         </View>
                     </Card>
                 </Animated.View>
-            ) : (
-                /* ── ATHLETE: payment method placeholder ── */
-                <Animated.View entering={FadeInDown.duration(250)} style={styles.section}>
-                    <SectionHeader title="Payment Method" />
-                    <Card>
-                        <View style={styles.comingSoonRow}>
-                            <Ionicons name="card-outline" size={28} color={Colors.primary} />
-                            <Text style={styles.comingSoonText}>
-                                Payment methods will be available soon. We're integrating Stripe for secure payments.
-                            </Text>
-                        </View>
-                    </Card>
-
-                    <Pressable
-                        style={({ pressed }) => [styles.addMethodButton, pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] }]}
-                        onPress={handleAddPaymentMethod}
-                        accessibilityLabel="Add Payment Method"
-                    >
-                        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-                        <Text style={styles.addMethodText}>Add Payment Method</Text>
-                    </Pressable>
-                </Animated.View>
-            )}
+            ) : null}
 
             {/* ── Recent Transactions ── */}
             <View style={styles.section}>
-                <SectionHeader title="Recent Transactions" />
+                <SectionHeader title={isTrainer ? 'Recent Transactions' : 'Payment History'} />
 
                 {transactions.length === 0 ? (
                     <Card>
@@ -542,7 +527,7 @@ export default function PaymentMethodsScreen({ navigation }: any) {
                     <Card noPadding>
                         {transactions.map((tx, index) => (
                             <View key={tx.id}>
-                                <TransactionItem tx={tx} />
+                                <TransactionItem tx={tx} isTrainer={isTrainer} />
                                 {index < transactions.length - 1 && (
                                     <View style={styles.txDivider} />
                                 )}

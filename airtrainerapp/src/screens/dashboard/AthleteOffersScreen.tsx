@@ -92,7 +92,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
     const [refreshing, setRefreshing] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedOffer, setSelectedOffer] = useState<OfferRow | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const fetchOffers = useCallback(async () => {
         if (!user) return;
@@ -155,7 +155,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
 
     const handleAccept = async (offer: OfferRow) => {
         if (!user) return;
-        setActionLoading(true);
+        setActionLoading(offer.id);
         try {
             const { data: athleteUser } = await supabase
                 .from('users')
@@ -190,25 +190,37 @@ export default function AthleteOffersScreen({ navigation }: any) {
                 return;
             }
 
-            // Step 4: Verify payment
-            await apiFetchJson('/api/stripe/verify-offer-payment', {
+            // Step 4: Verify payment + create booking
+            const verifyResult = await apiFetchJson('/api/stripe/verify-offer-payment', {
                 method: 'POST',
                 body: JSON.stringify({ paymentIntentId, offerId: offer.id }),
             }).catch(() => null);
 
             setModalVisible(false);
-            Alert.alert('Success!', 'Payment complete. Your booking will be created shortly.');
             fetchOffers();
+
+            if (verifyResult?.bookingId) {
+                Alert.alert(
+                    'Payment Successful!',
+                    'Your booking has been created.',
+                    [
+                        { text: 'View Booking', onPress: () => navigation.navigate('BookingDetail', { bookingId: verifyResult.bookingId }) },
+                        { text: 'OK' },
+                    ]
+                );
+            } else {
+                Alert.alert('Payment Complete', 'Your booking will be created shortly.');
+            }
         } catch (err: any) {
             console.error('Error accepting offer:', err);
             Alert.alert('Error', err?.message || 'Could not accept the offer. Please try again.');
         } finally {
-            setActionLoading(false);
+            setActionLoading(null);
         }
     };
 
     const handleDecline = async (offer: OfferRow) => {
-        setActionLoading(true);
+        setActionLoading(offer.id);
         try {
             const { error } = await supabase
                 .from('training_offers')
@@ -232,7 +244,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
             console.error('Error declining offer:', err);
             Alert.alert('Error', 'Could not decline the offer. Please try again.');
         } finally {
-            setActionLoading(false);
+            setActionLoading(null);
         }
     };
 
@@ -336,7 +348,7 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                         variant="secondary"
                                         size="sm"
                                         icon="close"
-                                        disabled={actionLoading}
+                                        disabled={actionLoading === offer.id}
                                     />
                                 </View>
                                 <View style={{ flex: 1 }}>
@@ -346,7 +358,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                         variant="primary"
                                         size="sm"
                                         icon="checkmark"
-                                        disabled={actionLoading}
+                                        loading={actionLoading === offer.id}
+                                        disabled={actionLoading === offer.id}
                                     />
                                 </View>
                             </View>
@@ -487,8 +500,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                                 onPress={() => handleDecline(selectedOffer)}
                                                 variant="danger"
                                                 icon="close"
-                                                loading={actionLoading}
-                                                disabled={actionLoading}
+                                                loading={actionLoading === selectedOffer.id}
+                                                disabled={actionLoading === selectedOffer.id}
                                             />
                                         </View>
                                         <View style={{ flex: 1 }}>
@@ -497,8 +510,8 @@ export default function AthleteOffersScreen({ navigation }: any) {
                                                 onPress={() => handleAccept(selectedOffer)}
                                                 variant="primary"
                                                 icon="checkmark"
-                                                loading={actionLoading}
-                                                disabled={actionLoading}
+                                                loading={actionLoading === selectedOffer.id}
+                                                disabled={actionLoading === selectedOffer.id}
                                             />
                                         </View>
                                     </View>
